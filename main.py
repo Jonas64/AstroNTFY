@@ -1,27 +1,12 @@
 import requests
-from datetime import datetime
-from datetime import timezone as tz
+from abc import ABC, abstractmethod
+from datetime import datetime, time
 from zoneinfo import ZoneInfo
-import pandas
+import pandas as pd
 from time import sleep
 from variables import *
 
-
-translate_months = {
-    "01": "January",
-    "02": "February",
-    "03": "March",
-    "04": "April",
-    "05": "May",
-    "06": "June",
-    "07": "July",
-    "08": "August",
-    "09": "September",
-    "10": "October",
-    "11": "November",
-    "12": "December"
-}
-translate_months_reverse = dict(zip(translate_months.values(), translate_months.keys()))
+localtime = ZoneInfo(timezone)
 
 
 transit_url = f"https://issinfo.net/transit-finder?lat={latitude}&lon={longitude}&days=30"
@@ -38,19 +23,370 @@ solar_transit_img_url = "https://www.dropbox.com/scl/fi/5hkcb42pi1gopd1a4hsah/so
 ntfy_url = f"https://ntfy.sh/{topic}"
 notification_priority = "3"
 
-def convert_time(time_str_iso_8601_utc:str) -> tuple:
-    dt_utc = datetime.fromisoformat(time_str_iso_8601_utc)
 
-    # Convert to local time zone
-    date_local = dt_utc.astimezone(ZoneInfo(timezone))
+class BaseNotifier(ABC):
+    """Base class used for all notifications"""
+    def __init__(self, notify_:bool=True, print_message:bool=True):
+        self.notify_ = notify_
+        self.print_message = print_message
+        self.data = None
+        self.data_poi = None # Data point of interest
+        self.weather_df = None
 
-    # Format to a readable local string including day
-    formatted = date_local.strftime("%A, %d. %B at %H:%M (%Y) %Z")
+    def base_headers(self, title:str, click:str, x_attach:str) -> dict:
+        """Creates the header dictionary"""
+        return {
+            "Title": title,
+            "Click": click,
+            "Priority": notification_priority,
+            "X-Attach": x_attach
+        }
 
-    # Sunday, 12. July at 23:00 (2026)
-    return (formatted, date_local)
+    def validate_response(self, response:requests.Response):
+        """Checks if response is ok and sets self.data accordingly"""
+        if response.ok:
+            return response
+        else:
+            print("Response invalid, status code", response.status_code, self)
+            return None
+    
+    def closest_weather_forecast(self) -> pd.DataFrame:
+        """Returns a dataframe of a single row containing the closest weather forecast to the data_poi"""
+        target_time_utc = self.data_poi["time_utc"]
 
-def notify(message:str, headers:dict, tries:int=0, limit_tries:int=10):
+        working_weather_df = self.weather_df.copy()
+        working_weather_df["delta_time"] = working_weather_df["time_utc"].apply(lambda t: t-target_time_utc)
+        working_weather_df["delta_time"] = working_weather_df["delta_time"].apply(lambda t: abs(t))
+        working_weather_df = working_weather_df.sort_values(by="delta_time", key=abs)
+        
+        return working_weather_df.head(1)
+
+    def append_weather(self, msg:str, weather_forecast:pd.DataFrame) -> str:
+        """Returns the final message with a weather forecast at the end"""
+        final_msg = msg
+
+        delta_str = format_delta(weather_forecast["delta_time"].iloc[0])
+        final_msg += f"\n\nHere is the closest weather forecast available ({delta_str}):\n"
+        final_msg += f"Cloud coverage: {weather_forecast["cloud_area_fraction"].iloc[0]} %\n"
+        final_msg += f"Wind speed: {weather_forecast["wind_speed"].iloc[0]} m/s"
+
+        return final_msg
+
+    def run(self, weather_df:pd.DataFrame) -> bool:
+        """Fetches data and notifies of anything noteworthy"""
+        self.weather_df = weather_df
+        try:
+            self.data = self.fetch_data()
+        except Exception as e:
+            print(e)
+        if self.data is not None:
+            self.data = self.parse_data()
+            if self.is_notable():
+                weather_forecast = self.closest_weather_forecast()
+                msg = self.message()
+                msg = self.append_weather(msg, weather_forecast)
+                hdrs = self.headers()
+                if self.print_message:
+                    print(hdrs["Title"])
+                    print(msg)
+                if self.notify_:
+                    return notify(msg, hdrs)
+                return False
+    
+    @abstractmethod
+    def fetch_data(self) -> requests.Response | None:
+        """Get raw data from URL"""
+
+    @abstractmethod
+    def parse_data(self) -> pd.DataFrame:
+        """Parse and clean data """
+
+    @abstractmethod
+    def is_notable(self) -> bool:
+        """Decides if the event/data is worth notifying about, 
+        if there is, it sets self.data_poi"""
+
+    @abstractmethod
+    def message(self) -> str:
+        """Builds the notification message withouth the weather forecast"""
+    
+    @abstractmethod
+    def headers(self) -> dict:
+        """Builds the notification (ntfy) headers (Title, Click, Priority, X-Attach)"""
+
+
+class NorthernLightsNotifier(BaseNotifier):
+    def fetch_data(self):
+        response = requests.get("https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json")
+        return self.validate_response(response)
+
+    def parse_data(self) -> pd.DataFrame:
+        data_json = self.data.json()
+        forecast = []
+        for data_point in data_json:
+            if data_point["observed"] != "observed": # If datapoint is a prediction, not observation
+                forecast.append({
+                    "time_utc": to_datetime_utc(data_point["time_tag"]+"Z"),
+                    "kp": data_point["kp"],
+                    "noaa_scale": data_point["noaa_scale"]
+                })
+        
+        return pd.DataFrame(forecast)
+
+    def is_notable(self) -> bool:
+        max_kp_row = self.data.loc[self.data["kp"].idxmax()]
+        
+        if max_kp_row["kp"] > kp_treshold:
+            self.data_poi = max_kp_row
+            return True
+        self.data_poi = None
+        return False
+
+    def message(self) -> str:
+        return f"Predictions show a chance of kp {self.data_poi['kp']} on {to_str_localtime(self.data_poi["time_utc"])}"
+    
+    def headers(self) -> dict:
+        return self.base_headers(
+            f"Chance for northern lights (kp {self.data_poi['kp']})",
+            northern_lights_url,
+            northern_lights_img_url
+        )
+
+class TransitNotifier(BaseNotifier):
+    def fetch_data(self) -> requests.Response | None:
+        response = requests.get(f"https://issinfo.net/api/transits-proxy?lat={latitude}&lon={longitude}&body=both&days=30&max_drive_km=50&visible_only=true")
+        return self.validate_response(response)
+
+    def parse_data(self) -> pd.DataFrame:
+        data_json = self.data.json()
+
+        #if data_json["count"] > 0:
+        extracted_data = {
+            "name": [],
+            "body": [],
+            "time_utc": []
+        }
+        for transit in data_json["transits"]:
+            extracted_data["name"].append(transit["satellite_name"])
+            extracted_data["body"].append(transit["body"])
+            extracted_data["time_utc"].append(datetime.fromtimestamp(transit["utc_unix"], tz=ZoneInfo("UTC")))
+
+        return pd.DataFrame(extracted_data)
+    
+    def is_notable(self) -> bool:
+        # Transits always notify, so this will pick the first one if there is any
+        self.data_poi = self.data.head(1)
+        if self.data_poi.empty:
+            return False
+        return True
+    
+    def message(self) -> str:
+        total_count = len(self.data)
+        body = self.data_poi["body"].iloc[0]
+        time_utc = self.data_poi["time_utc"].iloc[0]
+        name = self.data_poi["name"].iloc[0]
+
+        """
+        Lunar transit (ISS)
+        On Sunday, 12. July at 14:00 (2026) there will be an ISS lunar transit
+        
+
+        Multiple transits (ISS x2, Hubble x1)
+        The first transit will happen on Sunday, 12. July at 14:00 (2026),
+        this will be an ISS solar transit
+        """
+
+        transit_type = "solar"
+        if body == "moon":
+            transit_type = "lunar"
+        if total_count == 1:
+            return f"On {to_str_localtime(time_utc)} there will be a {transit_type} transit of {name}"
+        else:
+            return f"The first transit will occur on {to_str_localtime(time_utc)}, this will be a {transit_type} transit of {name}"
+
+    def headers(self) -> dict:
+        if self.data_poi["body"].iloc[0] == "moon":
+            title = "Lunar transit"
+            transit_img_url = lunar_transit_img_url
+        else:
+            title = "Solar transit"
+            transit_img_url = solar_transit_img_url
+        if len(self.data) > 1:
+            title = "Multiple transits"
+        transit_stations_str = ""
+        station_count = self.data["name"].value_counts()
+        for station in self.data["name"]:
+            if station not in transit_stations_str:
+                transit_stations_str += station+" x"+str(station_count[station])+", "
+        title += " ("+transit_stations_str[:-2]+")"
+        return self.base_headers(
+            title,
+            transit_url,
+            transit_img_url
+        )
+
+class SunspotNotifier(BaseNotifier):
+    def fetch_data(self) -> requests.Response | None:
+        response = requests.get("https://services.swpc.noaa.gov/text/solar-regions.txt")
+        return self.validate_response(response)
+
+    def parse_data(self) -> pd.DataFrame:
+        data_txt = self.data.text
+
+        text_rows = data_txt.split("\n")
+
+        data_rows = []
+        for i, row in enumerate(text_rows): # Remove info, keep sunspot table
+            if i > 11:
+                data_rows.append(row.split(" "))
+        
+        clean_data_rows = [] # Remove blanks
+        for i, row in enumerate(data_rows):
+            clean_data_rows.append([])
+            for d in row:
+                if d != "":
+                    clean_data_rows[i].append(d)
+        clean_data_rows.remove([])
+
+        today_utc_date = datetime.now(ZoneInfo("UTC")).date()
+        target_time = time(hour=12, minute=0, second=0, tzinfo=ZoneInfo("UTC"))
+        utc_today = datetime.combine(today_utc_date, target_time)
+        final_data = []
+        for row in clean_data_rows:
+            final_data.append({
+                "Area": int(row[3]),
+                "Extent": int(row[4]),
+                "Class": row[5],
+                "Local count": int(row[6]),
+                "time_utc": utc_today
+            })
+        
+        return pd.DataFrame(final_data)
+
+    def is_notable(self) -> bool:
+        sum_area = sum(self.data["Area"])
+        big_sunspot_count = sum(self.data["Area"] > 275)
+
+        if sum_area > total_sunspot_area_treshold:
+            self.data_poi = pd.DataFrame(
+                {
+                    "total_area": sum_area,
+                    "big_sunspot_count": big_sunspot_count,
+                    "time_utc": self.data["time_utc"][0]
+                },
+                index=[0]
+            )
+            return True
+        else:
+            self.data_poi = None
+            return False
+
+    def message(self) -> str:
+        if self.data_poi["big_sunspot_count"].iloc[0] == 1:
+            msg = f"There is {self.data_poi["big_sunspot_count"].iloc[0]} big sunspot on the sun, total area of all spots, {self.data_poi["total_area"].iloc[0]} MH"
+        else:
+            msg = f"There are {self.data_poi["big_sunspot_count"].iloc[0]} big sunspots on the sun, total area of all spots, {self.data_poi["total_area"].iloc[0]} MH"
+        return msg
+
+    def headers(self) -> dict:
+        return self.base_headers(
+            "Potentially multiple (big) sunspots",
+            sun_url,
+            sun_img_url
+        )
+
+class CometNotifier(BaseNotifier):
+    def fetch_data(self) -> requests.Response | None:
+        response = requests.get(f"https://cobs.si/data/planner/?session_date={datetime.now(ZoneInfo("UTC")).strftime("%Y-%m-%d")}&sun_alt=0&name=Oslo&lat={latitude}&long={longitude}&elev={elevation}&tz=UTC&mag={comet_mag_treshold}&alt=10&sun_elong=0&moon_elong=0&filter=0&_=1783448627942")
+        return self.validate_response(response)
+
+    def parse_data(self) -> pd.DataFrame:
+        return pd.DataFrame(self.data.json()["data"])
+
+    def is_notable(self) -> bool:
+        if len(self.data) > 0:
+            self.data_poi = self.data.loc[self.data["magnitude"].idxmax()]
+            self.data_poi["time_utc"] = to_datetime_utc(self.data_poi["best_time"]+"Z")
+            return True
+        self.data_poi = None
+        return False
+    
+    def message(self) -> str:
+        comet_mag = self.data_poi["magnitude"]
+        best_viewing_time = self.data_poi["best_time"]
+        comet_fullname = self.data_poi["comet_fullname"]
+        altitude = self.data_poi["best_alt"]
+        
+        return f"Comet {comet_fullname} with a magnitude of {comet_mag} and altitude {altitude} will be the most visable at {best_viewing_time}"
+
+    def headers(self) -> dict:
+        if len(self.data) > 1:
+            title = "Potentially multiple visable comets"
+        else:
+            title = "Potentially visable comet"
+        return self.base_headers(
+            title,
+            f"{comet_url}{self.data_poi["comet_name"].lower()}-info",
+            comet_img_url
+        )
+
+
+def format_delta(delta) -> str:
+    """Formats a timedelta as a signed, readable '+Dd Hh Mm' string."""
+    total_seconds = delta.total_seconds()
+    sign = "+" if total_seconds >= 0 else "-"
+    total_seconds = abs(total_seconds)
+
+    days = int(total_seconds // 86400)
+    hours = int((total_seconds % 86400) // 3600)
+    minutes = int((total_seconds % 3600) // 60)
+
+    parts = []
+    if days > 0:
+        if days == 1:
+            parts.append(f"{days}day")
+        else:
+            parts.append(f"{days}days")
+    if hours > 0 or days > 0:  # show hours if there are days, even if hours=0
+        parts.append(f"{hours}h")
+    parts.append(f"{minutes}min")
+
+    return f"{sign}{' '.join(parts)}"
+
+def weather() -> pd.DataFrame:
+    latitude_short = round(float(latitude), 3)
+    longitude_short = round(float(longitude), 3)
+
+    #with open("weather.json", "r") as f:
+    #    weather_forecast = json.load(f)
+
+    weather_forecast = requests.get(f"https://api.met.no/weatherapi/locationforecast/2.0/compact?lat={latitude_short}&lon={longitude_short}&altitude={elevation}")
+    weather_forecast = weather_forecast.json()
+
+    # Get weather forecast timeseries
+    weather_data = weather_forecast["properties"]["timeseries"]
+    weather_data = pd.DataFrame(weather_data)
+
+    weather_data["time_utc"] = weather_data["time"].apply(lambda t: to_datetime_utc(t))
+
+    # Extract data and create seperate collumns for it
+    instant_details = weather_data["data"].apply(lambda x: x["instant"]["details"])
+    instant_df = pd.json_normalize(instant_details)
+    weather_data = pd.concat([weather_data.drop(columns=["data"]), instant_df], axis=1)
+
+    return weather_data
+
+def to_datetime_utc(time:str) -> datetime:
+    """Returns the datetime object of a string in UTC time"""
+    return datetime.fromisoformat(time)
+
+def to_str_localtime(datetime_obj:datetime) -> str:
+    """Returns a formatted readable string of the datetime UTC object in localtime"""
+    local_datetime = datetime_obj.astimezone(localtime)
+    datetime_str = local_datetime.strftime("%A, %d. %B at %H:%M (%Y)") #%Z")
+    return datetime_str
+
+def notify(message:str, headers:dict, tries:int=0, limit_tries:int=10) -> bool:
     response = requests.post(ntfy_url, data=message, headers=headers)
 
     if response.status_code == 200:
@@ -64,288 +400,19 @@ def notify(message:str, headers:dict, tries:int=0, limit_tries:int=10):
         else:
             return False
 
-def check_northern_lights(weather_df_:pandas.DataFrame, notify_:bool=True, print_message:bool=False) -> dict:
-    all_data = requests.get("https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json")
-    all_data = all_data.json()
-    forecast = []
-    for data_point in all_data:
-        if data_point["observed"] != "observed": # If datapoint is a prediction, not observation
-            time = convert_time(data_point["time_tag"])
-            forecast.append({
-                "time_str": time[0],
-                "raw_time": time[1],
-                "kp": data_point["kp"],
-                "noaa_scale": data_point["noaa_scale"]
-            })
 
-    notify_northern_lights(forecast, weather_df_, notify_, print_message)
+notifiers = {
+    "northern_lights": NorthernLightsNotifier(),
+    "transit": TransitNotifier(),
+    "sunspot": SunspotNotifier(),
+    "comet": CometNotifier()
+}
 
-    return forecast
-
-def notify_northern_lights(forecast:list, weather_df_:pandas.DataFrame, notify_:bool=True, print_message:bool=False):
-    forecast_df = pandas.DataFrame(forecast)
-    
-    max_kp = max(forecast_df["kp"])
-    max_kp_index = (forecast_df["kp"] == max_kp).idxmax() # Index for the max kp of all predictions
-
-    print(forecast[max_kp_index]["time_str"])
-    print()
-
-    if max_kp > kp_treshold:
-        message = f"Predictions show a chance of kp {max_kp} on {forecast_df["time_str"][max_kp_index]}"
-        
-        headers = {
-            "Title": f"Chance for northern lights (kp {max_kp})",
-            "Click": northern_lights_url,
-            "Priority": notification_priority,
-            "X-Attach": northern_lights_img_url
-        }
-        
-        forecast = generate_weather_forecast({"date": str(forecast[max_kp_index]["raw_time"])[:10], "time": str(forecast[max_kp_index]["raw_time"])[11:16]}, weather_df_)
-        message += forecast
-
-        if print_message:
-            print(message)
-        if notify_:
-            notify(message, headers)
-    else:
-        print("No northern light activity.")
-
-def check_transits(weather_df_:pandas.DataFrame, notify_:bool=True, print_message:bool=False) -> dict:
-    latitude = 10
-    transits = requests.get(f"https://issinfo.net/api/transits-proxy?lat={latitude}&lon={longitude}&body=both&days=30&max_drive_km=50&visible_only=true")
-    transits = transits.json()
-    
-    if transits["count"] > 0:
-        all_satellite_names = []
-        all_bodies = []
-        all_times = []
-        for transit in transits["transits"]:
-            all_satellite_names.append(transit["satellite_name"])
-            all_bodies.append(transit["body"])
-            all_times.append(datetime.fromtimestamp(transit["utc_unix"], tz=ZoneInfo(timezone)))
-        if notify_:
-            notify_transit(transits["count"], all_satellite_names, all_bodies, all_times, weather_df_, print_message)
-
-    return transits
-
-def notify_transit(transit_count:int, transit_station:list, body:list, time:list, weather_df_:pandas.DataFrame, print_message:bool=False):
-    if body[0] == "moon":
-        title = "Lunar transit"
-        transit_img_url = lunar_transit_img_url
-    else:
-        title = "Solar transit"
-        transit_img_url = solar_transit_img_url
-    if transit_count > 1:
-        title = "Multiple transits"
-
-    formatted_time = ""
-    time[0] = str(time[0])
-    formatted_time += time[0][:5]
-
-    headers = {
-        "Title": title,
-        "Click": transit_url,
-        "Priority": notification_priority,
-        "X-Attach": transit_img_url
-    }
-    if transit_count == 1:
-        message = title+f" ({transit_station[0]})"
-    elif transit_count > 1:
-        transit_stations_str = ""
-        for station in transit_station:
-            if station not in transit_stations_str:
-                transit_stations_str += station+" x"+str(transit_station.count(station))+", "
-        transit_stations_str = transit_stations_str[:-2]
-        message = title+f" ({transit_stations_str})"
-
-    forecast = generate_weather_forecast({"date": time[0][:10], "time": time[0][11:16]}, weather_df_)
-    
-    message += forecast
-
-    if print_message:
-        print(message)
-    
-    if transit_count > 0:
-        notify(message, headers)
-    else:
-        print("No future transits.")
-
-def remove_from_list(l:list, r) -> list:
-    for row in l:
-        while r in row:
-            row.remove(r)
-    return l
-
-def check_solar_activity(print_message:bool=False) -> dict:
-    solar_activity = requests.get("https://services.swpc.noaa.gov/text/solar-regions.txt").text
-
-    text_rows = solar_activity.split("\n")
-
-    data_rows = []
-    for i, row in enumerate(text_rows): # Remove info, keep sunspot table
-        if i > 11:
-            data_rows.append(row.split(" "))
-    
-    clean_data_rows = remove_from_list(data_rows, "")
-    clean_data_rows.remove([])
-
-    final_data = []
-    for row in clean_data_rows:
-        final_data.append({
-            "Area": int(row[3]),
-            "Extent": int(row[4]),
-            "Class": row[5],
-            "Local count": int(row[6])
-        })
-
-    notify_solar_activity(final_data, print_message)
-    
-    return final_data
-
-def notify_solar_activity(sunspots:dict, print_message:bool=False):
-    sunspots_df = pandas.DataFrame(sunspots)
-
-    sum_area = sum(sunspots_df["Area"])
-    big_sunspot_count = sum(sunspots_df["Area"] > 250)
-
-    if sum_area > total_sunspot_area_treshold:
-        if big_sunspot_count == 1:
-            message = f"There is {big_sunspot_count} big sunspot on the sun, total area of all spots, {sum_area}"
-        else:
-            message = f"There are {big_sunspot_count} big sunspots on the sun, total area of all spots, {sum_area}"
-
-        headers = {
-            "Title": "Potentially multiple (big) sunspots",
-            "Click": sun_url,
-            "Priority": notification_priority,
-            "X-Attach": sun_img_url
-        }
-
-        if print_message:
-            print(message)
-
-        notify(message, headers)
-    else:
-        print("No notable solar activity.")
-
-def check_comets(date_to_check:str, weather_df_:pandas.DataFrame, notify_:bool=True, print_message:bool=False) -> dict:
-    comet_data = requests.get(f"https://cobs.si/data/planner/?session_date={date_to_check}&sun_alt=15&name=Oslo&lat={latitude}&long={longitude}&elev={elevation}&tz=localtime&mag={comet_mag_treshold}&alt=10&sun_elong=0&moon_elong=0&filter=0&_=1783448627942")
-
-    comet_data = comet_data.json()
-    comet_data = comet_data["data"]
-
-    if len(comet_data) > 0:
-        if notify_:
-            notify_comets(comet_data, weather_df_, print_message)
-    else:
-        print("No notable bright/visable comets.")
-
-def notify_comets(comets:dict, weather_df_:pandas.DataFrame, print_message:bool=False):
-    comets_df = pandas.DataFrame(comets)
-    highest_mag_comet = comets_df.loc[comets_df["magnitude"].idxmax()]
-    
-    comet_magnitude = highest_mag_comet["magnitude"]        # Magnitude of comet
-    best_viewing_time = highest_mag_comet["best_time"]      # Best time to view from Oslo
-    comet_fullname = highest_mag_comet["comet_fullname"]    # Full name of comet
-    comet_name = highest_mag_comet["comet_name"].lower()    # Official name
-    altitude = highest_mag_comet["best_alt"]                # Highest point it will be in the sky
-
-    message = f"Comet {comet_fullname} with a magnitude of {comet_magnitude} and altitude {altitude} will be the most visable at {best_viewing_time}"
-
-    headers = {
-        "Title": "Potentially visable comet.",
-        "Click": f"{comet_url}{comet_name}-info",
-        "Priority": notification_priority,
-        "X-Attach": comet_img_url
-    }
-    forecast = generate_weather_forecast({"date": best_viewing_time[:10], "time": best_viewing_time[-5:]}, weather_df_)
-    message += forecast
-
-    if print_message:
-        print(message)
-
-    notify(message, headers)
-
-import json
-
-def check_weather() -> pandas.DataFrame:
-    latitude_short = round(float(latitude), 3)
-    longitude_short = round(float(longitude), 3)
-    """
-    weather_forecast = requests.get(f"https://api.met.no/weatherapi/locationforecast/2.0/compact?lat={latitude_short}&lon={longitude_short}&altitude={elevation}")
-    weather_forecast = weather_forecast.json()
-
-    with open("weather.json", "w", encoding="utf-8") as f:
-        json.dump(weather_forecast, f, indent=4)
-    """
-
-    with open("weather.json", "r") as f:
-        weather_forecast = json.load(f)
-    
-    weather_data = weather_forecast["properties"]["timeseries"]
-    weather_df_ = pandas.DataFrame(weather_data)
-
-    # Convert time from ISO8601 to localtime and readable str
-    weather_df_["time_str"] = weather_df_["time"].apply(lambda t: convert_time(t)[0])
-    weather_df_["raw_time"] = weather_df_["time"].apply(lambda t: convert_time(t)[1])
-
-    # Extract data and create seperate collumns for it
-    instant_details = weather_df_["data"].apply(lambda x: x["instant"]["details"])
-    instant_df = pandas.json_normalize(instant_details)
-    weather_df_ = pandas.concat([weather_df_.drop(columns=["data"]), instant_df], axis=1)
-
-    return weather_df_
-
-def closest_weather_forecast(weather_df_:pandas.DataFrame, check_time:dict) -> pandas.DataFrame:
-    # Format check time
-    str_check_time = check_time["date"]+" "+check_time["time"]+":00"+" +0000" # "2026-07-10 14:30:00"
-    datetime_check_time = datetime.strptime(str_check_time, "%Y-%m-%d %H:%M:%S %z")
-    print(datetime_check_time)
-
-    # Format time in dataframe
-    weather_df_["time"] = weather_df_["raw_time"]
-    print(weather_df_["time"])
-
-    # Sort delta time to find lowest time difference
-    weather_df_["delta_time"] = weather_df_["time"].apply(lambda t: t.to_pydatetime()-datetime_check_time)
-    weather_df_["delta_time"] = weather_df_["delta_time"].apply(lambda t: abs(t))
-    weather_df_ = weather_df_.sort_values(by="delta_time", ignore_index=False, key=abs)
-
-    return weather_df_.head(1)
-
-def generate_weather_forecast(check_time:dict, all_forecasts:pandas.DataFrame) -> str:
-    """
-    check_time = {
-        'date': '2026-07-12',
-        'time': '01:22'
-    }
-    """
-    closest_forecast = closest_weather_forecast(all_forecasts, check_time)
-    closest_forecast_all = all_forecasts.loc[closest_forecast.index[0]]
-    closest_forecast_all["delta_time"] = str(closest_forecast_all["delta_time"])[:-3]
-    sign = closest_forecast_all["delta_time"][0]
-    if closest_forecast_all["delta_time"][0] == "0":
-        closest_forecast_all["delta_time"] = closest_forecast_all["delta_time"][-5:]
-    if sign != "-":
-        closest_forecast_all["delta_time"] = "+"+closest_forecast_all["delta_time"]
-    
-    forecast = f"\n\nHere is the closest weather forecast available ({closest_forecast_all["delta_time"]}):\n"
-
-    forecast += f"Cloud coverage: {closest_forecast_all["cloud_area_fraction"]} %\n"
-    forecast += f"Wind speed: {closest_forecast_all["wind_speed"]} m/s"
-
-    return forecast
-
-weather_df = check_weather()
-check_northern_lights(weather_df, notify_=False, print_message=True)
-
-#transits = check_transits(weather_df, notify_=False, print_message=True)
-#check_comets(date.today(), weather_df, notify_=False, print_message=True)
-
-month = datetime.now().month
-if (month >= 3) and (month <= 9):   # Between march and september (summer)
-    #check_solar_activity(weather_df, notify_=False, print_message=True)
-    pass
-if (month <= 3) or (month >= 9):    # Between march and september (winter)
-    check_northern_lights(weather_df, notify_=False, print_message=True)
+weather_forecast = weather()
+current_month = datetime.now().month
+for notifier_type, notifier in notifiers.items():
+    month_min = datetime.strptime(notification_info[notifier_type][0][0], "%b").month
+    month_max = datetime.strptime(notification_info[notifier_type][0][1], "%b").month
+    if month_min <= current_month <= month_max:
+        if notification_info[notifier_type][1]:
+            notifier.run(weather_forecast)
