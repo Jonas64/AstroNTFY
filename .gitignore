@@ -3,3 +3,7 @@ variables.py
 v1.py
 __pycache__
 .DS_Store
+de421.bsp
+obs_horizon/horizon.png
+icons/comet.png
+icons/transit.png
