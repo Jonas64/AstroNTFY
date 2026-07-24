@@ -44,7 +44,7 @@ class CometNotifier(BaseNotifier):
         return f"Comet {comet_fullname} with a magnitude of {comet_mag} and a maximum altitude of {altitude} will be the most visable at {best_viewing_time}. {visible_str}"
 
     def headers(self) -> dict:
-        generate_horizon_img(self.data_poi["best_az"], self.data_poi["best_alt"], "comet")
+        generate_horizon_img(self.data_poi["best_az"], self.data_poi["best_alt"], "comet", self.data_poi["time_utc"])
         if len(self.data) > 1:
             title = "Potentially multiple visable comets"
         else:

@@ -69,7 +69,7 @@ class TransitNotifier(BaseNotifier):
             return f"The first transit will occur on {to_str_localtime(time_utc)}, this will be a {transit_type} transit of {name}. {visible_str}"
 
     def headers(self) -> dict:
-        generate_horizon_img(self.data_poi["az"], self.data_poi["alt"], "transit")
+        generate_horizon_img(self.data_poi["az"], self.data_poi["alt"], "transit", self.data_poi["time_utc"])
         if self.data_poi["body"] == "moon":
             title = "Lunar transit"
             transit_img_url = lunar_transit_img_url

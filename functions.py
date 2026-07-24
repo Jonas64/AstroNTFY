@@ -9,6 +9,7 @@ from time import sleep
 from PIL import Image, ImageDraw
 
 from variables import *
+from skymap_generation import generate_starmap
 
 localtime = ZoneInfo(timezone)
 ntfy_url = f"https://ntfy.sh/{topic}"
@@ -107,19 +108,26 @@ def to_str_localtime(datetime_obj:datetime) -> str:
     datetime_str = local_datetime.strftime("%A, %d. %B at %H:%M (%Y)") #%Z")
     return datetime_str
 
-def generate_horizon_img(az:float, alt:float, name:str):
+def generate_horizon_img(az:float, alt:float, name:str, time:datetime):
     """Creates and saves a flattened image of the horizon including a circle of where the event will happen"""
     az += horizon_north_offset
     az = az%360
     coords = degrees_to_pixels(az, alt)
 
     horizon_img_draw = Image.open("obs_horizon/horizon_example.png")
+
+    generate_starmap(float(latitude), float(longitude), time, name)
+
+    horizon = Image.open("obs_horizon/horizon.png").convert("RGBA")
+    starmap = Image.open(f"icons/starmap_{name}.png").convert("RGBA")
+    horizon_img_draw = Image.alpha_composite(starmap.resize(horizon.size), horizon)
+
     draw = ImageDraw.Draw(horizon_img_draw)
     if get_visibility(az, alt):
         fill_color = "green"
     else:
         fill_color = "red"
-    draw.circle((coords), 12, fill=fill_color)
+    draw.circle((coords), 10, fill=fill_color)
 
     flat_np = py360convert.e2p(
         np.array(horizon_img_draw), 
