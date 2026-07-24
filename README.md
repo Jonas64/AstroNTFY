@@ -28,7 +28,7 @@ In order for you to receive notifications, you will need the [ntfy.sh](https://n
 Create a new topic in the app with a cryptic name that people won't guess. I used a password generator.
 
 ## Final setup
-Finally, fill in the variables (latitude/longitude, elevation, ntfy topic, timezone) in [variables_example.py](variables_example.py) and rename it to variables.py.
+Finally, fill in the variables (latitude/longitude, elevation, ntfy topic, timezone) in [variables_example.py](variables_example.py) and rename it to variables.py. There are also other variables for more control over the notifications, that is documented there.
 
 # Optional
 
