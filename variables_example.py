@@ -4,6 +4,7 @@ longitude = "13.4050"               # Your longitude
 elevation = "38"                    # Your altitude in meters above sea level
 timezone = "Europe/Berlin"          # The timezone of where you will be observing from (IANA Time Zone Database)
 
+# Optional changes:
 kp_treshold = 6                     # If kp exceeds this value, you will be notified
 total_sunspot_area_treshold = 1500  # If the total area (measured in MH) of all sunspots exceeds this value, you will be notified
 comet_mag_treshold = 7              # Any comet with a magnitude lower than this number will notify you
@@ -12,12 +13,12 @@ include_observation_horizon = False # Leave this False if you will not be adding
 horizon_north_offset = 0            # How many degrees offset is your image from true north (-360 to +360)
 
 # ((from month, to month), should this event notify you? (True/False))
-# E.g. ("Jan", "Dec") will notify you the whole year
+# E.g. ("Jan", "Dec") will notify you the whole year, ("Apr", "Sep") will notify you from april to september
 notification_info = {
-    "northern_lights":  (("Sep", "Apr"), True),
+    "northern_lights":  (("Jan", "Dec"), True),
     "transit":          (("Jan", "Dec"), True),
-    "sunspot":          (("Mar", "Sep"), True),
-    "comet":            (("Aug", "Apr"), True)
+    "sunspot":          (("Jan", "Dec"), True),
+    "comet":            (("Jan", "Dec"), True)
 }
 
 """ Prints all available timezones

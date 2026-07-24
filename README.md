@@ -28,7 +28,7 @@ In order for you to receive notifications, you will need the [ntfy.sh](https://n
 Create a new topic in the app with a cryptic name that people won't guess. I used a password generator.
 
 ## Final setup
-Finally, fill in the variables (latitude/longitude, ntfy topic, notification thresholds) in [variables_example.py](variables_example.py) and rename it to variables.py.
+Finally, fill in the variables (latitude/longitude, elevation, ntfy topic, timezone) in [variables_example.py](variables_example.py) and rename it to variables.py.
 
 # Optional
 
@@ -55,6 +55,6 @@ Find the real azimuth for the landmark by standing exactly where you took the ph
 
 Now subtract the two and you're left with the horizon_north_offset variable that you set in [variables_example.py](variables_example.py).
 
-This is an example of an image you might receive with a notification showing where the comet will be in your sky.
+This is an example of an image you might receive with a notification showing where the comet will be in your sky. The stars look a little distorted along the top and bottom of the frame, but they should be accurate. 
 
 ![Notification example](readme_imgs/comet_notification_example.png)

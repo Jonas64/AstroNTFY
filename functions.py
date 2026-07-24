@@ -114,8 +114,6 @@ def generate_horizon_img(az:float, alt:float, name:str, time:datetime):
     az = az%360
     coords = degrees_to_pixels(az, alt)
 
-    horizon_img_draw = Image.open("obs_horizon/horizon_example.png")
-
     generate_starmap(float(latitude), float(longitude), time, name)
 
     horizon = Image.open("obs_horizon/horizon.png").convert("RGBA")
