@@ -8,4 +8,8 @@ hip_main.dat
 obs_horizon/horizon.png
 icons/comet.png
 icons/transit.png
-icons/starmap_transit.png
+starmaps/comet.png
+starmaps/transit.png
+test_data
+testing
+movie.gif

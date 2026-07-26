@@ -12,6 +12,8 @@ comet_mag_treshold = 7              # Any comet with a magnitude lower than this
 include_observation_horizon = False # Leave this False if you will not be adding your own horizon.png image, else change to True
 horizon_north_offset = 0            # How many degrees offset is your image from true north (-360 to +360)
 
+redirect_to_website = False         # Decides if you should be redirected to a relevant website when clicking a notification (True/False)
+
 # ((from month, to month), should this event notify you? (True/False))
 # E.g. ("Jan", "Dec") will notify you the whole year, ("Apr", "Sep") will notify you from april to september
 notification_info = {

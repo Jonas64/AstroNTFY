@@ -1,7 +1,7 @@
 from .base import BaseNotifier
 import requests
 import pandas as pd
-from transit_finder import find_iss_transits
+from transit_finder import get_transit_dataframe
 from variables import *
 from functions import *
 
@@ -11,30 +11,10 @@ solar_transit_img_url = "https://www.dropbox.com/scl/fi/5hkcb42pi1gopd1a4hsah/so
 
 class TransitNotifier(BaseNotifier):
     def fetch_data(self) -> requests.Response | None:
-        return find_iss_transits(float(latitude), float(longitude))
+        return get_transit_dataframe(float(latitude), float(longitude), 50, 30)
 
     def parse_data(self) -> pd.DataFrame:
-        extracted_data = {
-            "name": [],
-            "body": [],
-            "time_utc": [],
-            "alt": [],
-            "az": [],
-            "best_lat": [],
-            "best_lon": [],
-            "obs_dist_km": []
-        }
-        for transit in self.data["transits"]:
-            extracted_data["name"].append("ISS")
-            extracted_data["body"].append(transit["body"])
-            extracted_data["time_utc"].append(to_datetime_utc(transit["time_utc"]))
-            extracted_data["alt"].append(transit["iss_alt"])
-            extracted_data["az"].append(transit["iss_az"])
-            extracted_data["best_lat"].append(transit["best_lat"])
-            extracted_data["best_lon"].append(transit["best_lon"])
-            extracted_data["obs_dist_km"].append(transit["obs_dist_km"])
-
-        return pd.DataFrame(extracted_data)
+        return self.data
     
     def is_notable(self) -> bool:
         # Transits always notify, so this will pick the first one if there are any
@@ -50,7 +30,7 @@ class TransitNotifier(BaseNotifier):
         body = self.data_poi["body"]
         time_utc = self.data_poi["time_utc"]
         name = self.data_poi["name"]
-        alt, az = self.data_poi["alt"], self.data_poi["az"]
+        alt, az = self.data_poi["iss_alt"], self.data_poi["iss_az"]
 
         if include_observation_horizon:
             if get_visibility(az, alt):
@@ -64,12 +44,12 @@ class TransitNotifier(BaseNotifier):
         if body == "moon":
             transit_type = "lunar"
         if total_count == 1:
-            return f"On {to_str_localtime(time_utc)} there will be a {transit_type} transit of {name}. {visible_str}"
+            return f"On {to_str_localtime(time_utc)} there will be a {transit_type} transit of {name} with a duration of {self.data_poi["duration"]} s. {visible_str}"
         else:
-            return f"The first transit will occur on {to_str_localtime(time_utc)}, this will be a {transit_type} transit of {name}. {visible_str}"
+            return f"The first transit will occur on {to_str_localtime(time_utc)}, this will be a {transit_type} transit of {name} with a duration of {self.data_poi["duration"]} s. {visible_str}"
 
     def headers(self) -> dict:
-        generate_horizon_img(self.data_poi["az"], self.data_poi["alt"], "transit", self.data_poi["time_utc"])
+        generate_horizon_img(self.data_poi["iss_az"], self.data_poi["iss_alt"], "transit", self.data_poi["time_utc"], self.data_poi["best_lat"], self.data_poi["best_lon"])
         if self.data_poi["body"] == "moon":
             title = "Lunar transit"
             transit_img_url = lunar_transit_img_url

@@ -10,7 +10,7 @@ sun_img_url = "https://www.dropbox.com/scl/fi/f0uw2qs5th3hnx2bbm2ix/sun.jpg?rlke
 
 class SunspotNotifier(BaseNotifier):
     def fetch_data(self) -> requests.Response | None:
-        response = requests.get("https://services.swpc.noaa.gov/text/solar-regions.txt")
+        response = requests.get("https://services.swpc.noaa.gov/text/solar-regions.txt", timeout=30)
         return self.validate_response(response)
 
     def parse_data(self) -> pd.DataFrame:

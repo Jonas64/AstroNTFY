@@ -1,356 +1,330 @@
 """
-MIT License
+transit_finder_optimized.py – ISS transits across the Sun and Moon
 
-Copyright (c) 2026 Benno Schneider
+Main entry function:
+    get_transit_dataframe(lat, lon, radius, days, name="ISS", start_time=None)
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Returns:
+    pandas.DataFrame with columns:
+    [name, body, time_utc, alt, az, best_lat, best_lon, obs_dist_km, duration, body_az, body_alt]
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-"""
-
-"""
-transit_finder.py  –  ISS transits across the Sun and Moon
-
-Calculates all ISS crossings in front of the solar or lunar disk
-for the next N days, visible from a defined radius around a location.
-Optionally generates a PNG map of the visibility corridor for each transit.
-
-Requirements (core):
-    pip install skyfield requests numpy
-
-Requirements (maps):
-    pip install matplotlib contextily pyproj
-
-Usage:
-    python transit_finder.py --lat 50.11 --lon 8.68 --radius 100 --name Frankfurt
-    python transit_finder.py --lat 48.14 --lon 11.58 --days 14 --radius 50
+Requirements:
+    pip install skyfield requests numpy pandas
 """
 
 import math
 import sys
-from datetime import datetime, timezone, timedelta
-import pandas as pd
+from datetime import datetime
+from zoneinfo import ZoneInfo
+from concurrent.futures import ThreadPoolExecutor
 import numpy as np
+import pandas as pd
 import requests
 from skyfield.api import load, wgs84, EarthSatellite
+from skyfield.framelib import itrs
 
-# ── Algorithm parameters ───────────────────────────────────────────────────────
-SUN_RADIUS_DEG   = 0.2665   # mean apparent radius of the Sun  (~16')
-MOON_RADIUS_DEG  = 0.2575   # mean apparent radius of the Moon (~15.5')
-COARSE_STEP_S    = 10       # coarse-scan time step in seconds
-FINE_STEP_S      = 0.05     # fine-scan time step in seconds
-FINE_WINDOW_S    = 70       # fine-scan window (±seconds around each candidate)
-APPROACH_DEG     = 2.0      # angular threshold that triggers the fine scan
-DEDUP_S          = 120      # events closer than this are the same transit
-NORAD_ISS        = 25544
-MAPS_DIR         = "maps"
+# ── Algorithm parameters ────────────────────────────────────────────────────
+SUN_RADIUS_DEG = 0.2665
+MOON_RADIUS_DEG = 0.2575
+NORAD_ISS = 25544
+
+COARSE_STEP_S = 15.0
+APPROACH_DEG = 18.0      # must stay > (ISS peak ang. speed ~1.1 deg/s) * COARSE_STEP_S
+
+FINE_STEP_S = 0.1        # fine-scan time step in seconds
+FINE_WINDOW_S = 30       # fine-scan window (± seconds around each candidate)
+DEDUP_S = 60             # candidates closer than this (same body) are merged
+
+COARSE_WORKERS = 4       # thread count for coarse scan
+FINE_WORKERS = 4         # thread count for fine scan across candidates
+
+GRID_TARGET_SPACING_KM = 6.0   # max distance between adjacent grid points
 
 
-# ── TLE retrieval ──────────────────────────────────────────────────────────────
+# ── TLE retrieval ────────────────────────────────────────────────────────────
 
 def fetch_tle(norad: int = NORAD_ISS) -> tuple[str, str, str]:
-    """Fetch the current ISS TLE from the Celestrak GP API."""
+    """Fetch current ISS TLE from Celestrak GP API."""
     url = f"https://celestrak.org/NORAD/elements/gp.php?CATNR={norad}&FORMAT=TLE"
-    try:
-        r = requests.get(url, timeout=15)
-        r.raise_for_status()
-        lines = [ln.strip() for ln in r.text.splitlines() if ln.strip()]
-        if len(lines) >= 3:
-            return lines[0], lines[1], lines[2]
-    except Exception as e:
-        sys.exit(f"[Error] TLE fetch failed: {e}")
-    sys.exit("[Error] Unexpected TLE format from Celestrak")
+    r = requests.get(url, timeout=15)
+    r.raise_for_status()
+    lines = [ln.strip() for ln in r.text.splitlines() if ln.strip()]
+    if len(lines) < 3:
+        sys.exit("[Error] Unexpected TLE format from Celestrak")
+    return lines[0], lines[1], lines[2]
 
 
-# ── Geometry helpers ───────────────────────────────────────────────────────────
+# ── Geometry helpers ─────────────────────────────────────────────────────────
 
-def sep_vec(alt1, az1, alt2, az2):
-    """Vectorised angular separation (degrees) between two alt/az positions."""
-    a1, z1 = np.radians(alt1), np.radians(az1)
-    a2, z2 = np.radians(alt2), np.radians(az2)
-    c = np.sin(a1) * np.sin(a2) + np.cos(a1) * np.cos(a2) * np.cos(z1 - z2)
-    return np.degrees(np.arccos(np.clip(c, -1.0, 1.0)))
-
-
-def chord_coverage(min_sep_deg: float, r_deg: float) -> float:
-    """Fraction of the disk diameter the ISS path crosses (0–100 %)."""
-    if min_sep_deg >= r_deg:
-        return 0.0
-    return math.sqrt(max(0.0, 1.0 - (min_sep_deg / r_deg) ** 2)) * 100.0
-
-
-def azimuth_label(az_deg: float) -> str:
-    labels = ["N","NNE","NE","ENE","E","ESE","SE","SSE",
-              "S","SSW","SW","WSW","W","WNW","NW","NNW"]
-    return labels[round(az_deg / 22.5) % 16]
-
-
-def bearing_between(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Initial bearing (degrees, 0–360) from point 1 to point 2."""
-    φ1, φ2 = math.radians(lat1), math.radians(lat2)
-    Δλ = math.radians(lon2 - lon1)
-    x = math.sin(Δλ) * math.cos(φ2)
-    y = math.cos(φ1) * math.sin(φ2) - math.sin(φ1) * math.cos(φ2) * math.cos(Δλ)
-    return (math.degrees(math.atan2(x, y)) + 360) % 360
-
-
-def offset_point(lat: float, lon: float, bearing_deg: float, dist_km: float) -> tuple[float, float]:
-    """Return the point dist_km away from (lat, lon) in the given bearing."""
-    R  = 6371.0
-    δ  = dist_km / R
-    φ1 = math.radians(lat)
-    λ1 = math.radians(lon)
-    θ  = math.radians(bearing_deg)
-    φ2 = math.asin(math.sin(φ1) * math.cos(δ) + math.cos(φ1) * math.sin(δ) * math.cos(θ))
-    λ2 = λ1 + math.atan2(math.sin(θ) * math.sin(δ) * math.cos(φ1),
-                          math.cos(δ) - math.sin(φ1) * math.sin(φ2))
-    return math.degrees(φ2), math.degrees(λ2)
-
-
-# ── Observer grid ──────────────────────────────────────────────────────────────
-
-def observer_ring(lat: float, lon: float, radius_km: float) -> list[tuple[float, float]]:
-    """Centre point plus 8 points on the search-radius circle (every 45°)."""
+def observer_grid(lat: float, lon: float, radius_km: float,
+                   target_spacing_km: float = GRID_TARGET_SPACING_KM):
+    """Returns grid of (lat, lon) observer points across radius_km."""
     pts = [(lat, lon)]
-    if radius_km > 0.1:
-        for bearing_deg in range(0, 360, 45):
+    if radius_km <= 0.1:
+        return pts
+
+    n_rings = max(1, math.ceil(radius_km / target_spacing_km))
+
+    for ring in range(1, n_rings + 1):
+        ring_radius_km = (radius_km / n_rings) * ring
+        circumference_km = 2 * math.pi * ring_radius_km
+        points_this_ring = max(8, math.ceil(circumference_km / target_spacing_km))
+
+        for i in range(points_this_ring):
+            bearing_deg = (360.0 / points_this_ring) * i
             b = math.radians(bearing_deg)
-            dlat = (radius_km / 111.0) * math.cos(b)
-            dlon = (radius_km / (111.0 * math.cos(math.radians(lat)))) * math.sin(b)
+            dlat = (ring_radius_km / 111.0) * math.cos(b)
+            dlon = (ring_radius_km / (111.0 * math.cos(math.radians(lat)))) * math.sin(b)
             pts.append((lat + dlat, lon + dlon))
+
     return pts
 
 
-# ── Coarse scan ────────────────────────────────────────────────────────────────
+def haversine_km(lat1, lon1, lat2, lon2):
+    """Approximate great-circle distance in km."""
+    return math.sqrt(
+        ((lat2 - lat1) * 111.0) ** 2 +
+        ((lon2 - lon1) * 111.0 * math.cos(math.radians(lat1))) ** 2
+    )
+
+
+# ── Stage 1: coarse scan ─────────────────────────────────────────────────────
+
+def _coarse_scan_chunk(args):
+    """Computes angular separations and altitudes via 3D ICRF vectors."""
+    lat, lon, tt_chunk, eph_path, line1, line2, tle_name = args
+
+    ts = load.timescale()
+    eph = load(eph_path)
+    iss = EarthSatellite(line1, line2, tle_name, ts)
+
+    topos = wgs84.latlon(lat, lon)
+    t_arr = ts.tt_jd(tt_chunk)
+
+    r_obs = topos.at(t_arr).position.km
+    norm_obs = np.linalg.norm(r_obs, axis=0, keepdims=True)
+    u_up = r_obs / np.maximum(norm_obs, 1e-6)
+
+    r_iss_geo = iss.at(t_arr).position.km
+    r_sun_geo = (eph["sun"] - eph["earth"]).at(t_arr).position.km
+    r_moon_geo = (eph["moon"] - eph["earth"]).at(t_arr).position.km
+
+    v_iss = r_iss_geo - r_obs
+    v_sun = r_sun_geo - r_obs
+    v_moon = r_moon_geo - r_obs
+
+    norm_iss = np.linalg.norm(v_iss, axis=0)
+    norm_sun = np.linalg.norm(v_sun, axis=0)
+    norm_moon = np.linalg.norm(v_moon, axis=0)
+
+    sin_alt_iss = np.einsum('ij,ij->j', v_iss, u_up) / np.maximum(norm_iss, 1e-6)
+    sin_alt_sun = np.einsum('ij,ij->j', v_sun, u_up) / np.maximum(norm_sun, 1e-6)
+    sin_alt_moon = np.einsum('ij,ij->j', v_moon, u_up) / np.maximum(norm_moon, 1e-6)
+
+    iss_alt = np.degrees(np.arcsin(np.clip(sin_alt_iss, -1.0, 1.0)))
+    sun_alt = np.degrees(np.arcsin(np.clip(sin_alt_sun, -1.0, 1.0)))
+    moon_alt = np.degrees(np.arcsin(np.clip(sin_alt_moon, -1.0, 1.0)))
+
+    cos_sep_sun = np.einsum('ij,ij->j', v_iss, v_sun) / np.maximum(norm_iss * norm_sun, 1e-6)
+    cos_sep_moon = np.einsum('ij,ij->j', v_iss, v_moon) / np.maximum(norm_iss * norm_moon, 1e-6)
+
+    sep_sun = np.degrees(np.arccos(np.clip(cos_sep_sun, -1.0, 1.0)))
+    sep_moon = np.degrees(np.arccos(np.clip(cos_sep_moon, -1.0, 1.0)))
+
+    return iss_alt, sun_alt, moon_alt, sep_sun, sep_moon
+
 
 def coarse_scan(
-    lat: float, lon: float, days: int, ts, eph, iss
-) -> tuple[list[tuple[float, str]], float]:
-    """
-    Vectorised scan from the centre observer.
-    Returns (candidate list, t0_tt); candidates are (tt_jd, body_name).
-    """
-    earth    = eph["earth"]
-    observer = wgs84.latlon(lat, lon)
+    lat: float, lon: float, days: int, ts, eph, iss,
+    line1: str, line2: str, tle_name: str, eph_path: str,
+    start_time=None,
+):
+    t0 = ts.from_datetime(start_time) if start_time else ts.now()
+    n = int(days * 86400 / COARSE_STEP_S) + 1
+    tt = t0.tt + np.arange(n) * (COARSE_STEP_S / 86400.0)
 
-    t0    = datetime.now(timezone.utc)
-    n     = int(days * 86400 / COARSE_STEP_S) + 1
-    t0_tt = ts.from_datetime(t0).tt
-    tt    = t0_tt + np.arange(n) * (COARSE_STEP_S / 86400.0)
-    t_arr = ts.tt_jd(tt)
+    chunks = np.array_split(tt, COARSE_WORKERS)
+    args = [(lat, lon, chunk, eph_path, line1, line2, tle_name) for chunk in chunks]
 
-    print(f"  Coarse scan: {n:,} steps × {COARSE_STEP_S} s  ...", end=" ", flush=True)
+    with ThreadPoolExecutor(max_workers=COARSE_WORKERS) as ex:
+        results = list(ex.map(_coarse_scan_chunk, args))
 
-    iss_alt, iss_az, _   = (iss - observer).at(t_arr).altaz()
-    earth_at             = (earth + observer).at(t_arr)
-    sun_alt, sun_az, _   = earth_at.observe(eph["sun"]).apparent().altaz()
-    moon_alt, moon_az, _ = earth_at.observe(eph["moon"]).apparent().altaz()
+    iss_alt = np.concatenate([r[0] for r in results])
+    sun_alt = np.concatenate([r[1] for r in results])
+    moon_alt = np.concatenate([r[2] for r in results])
+    sep_sun = np.concatenate([r[3] for r in results])
+    sep_moon = np.concatenate([r[4] for r in results])
 
-    iss_up  = iss_alt.degrees > 0
-    sun_up  = sun_alt.degrees > -5
-    moon_up = moon_alt.degrees > -5
+    iss_up = iss_alt > 0
+    sun_up = sun_alt > -5
+    moon_up = moon_alt > -5
 
-    sep_sun  = sep_vec(iss_alt.degrees, iss_az.degrees, sun_alt.degrees,  sun_az.degrees)
-    sep_moon = sep_vec(iss_alt.degrees, iss_az.degrees, moon_alt.degrees, moon_az.degrees)
+    def extract_candidates(mask, sep_arr, body_name):
+        idx = np.where(mask)[0]
+        if len(idx) == 0:
+            return []
+        splits = np.where(np.diff(idx) > 1)[0] + 1
+        runs = np.split(idx, splits)
+        out = []
+        for run in runs:
+            best_idx = run[np.argmin(sep_arr[run])]
+            out.append((float(tt[best_idx]), body_name))
+        return out
 
-    hits_sun  = tt[iss_up & sun_up  & (sep_sun  < APPROACH_DEG)]
-    hits_moon = tt[iss_up & moon_up & (sep_moon < APPROACH_DEG)]
-
-    candidates = ([(float(t), "sun")  for t in hits_sun] +
-                  [(float(t), "moon") for t in hits_moon])
+    candidates = (
+        extract_candidates(iss_up & sun_up & (sep_sun < APPROACH_DEG), sep_sun, "sun")
+        + extract_candidates(iss_up & moon_up & (sep_moon < APPROACH_DEG), sep_moon, "moon")
+    )
     candidates.sort(key=lambda x: x[0])
 
-    # Cluster consecutive hits for the same body into a single candidate
-    clustered: list[tuple[float, str]] = []
-    last_t: dict[str, float] = {}
+    deduped = []
+    last_t = {}
     for t_c, body in candidates:
-        if body not in last_t or (t_c - last_t[body]) * 86400 > COARSE_STEP_S * 2.5:
-            clustered.append((t_c, body))
+        if body not in last_t or (t_c - last_t[body]) * 86400 > DEDUP_S:
+            deduped.append((t_c, body))
         last_t[body] = t_c
 
-    print(f"{len(clustered)} candidates.")
-    return clustered, t0_tt
+    return deduped
 
 
-# ── Fine scan ──────────────────────────────────────────────────────────────────
+# ── Stage 2: vectorized fine scan ───────────────────────────────────────────
 
-def fine_scan(
-    t_cand_tt: float,
-    body_name: str,
-    observers: list[tuple[float, float]],
+def fine_scan_radius(
+    t_cand_tt: float, body_name: str,
+    center_lat: float, center_lon: float, radius_km: float,
     ts, eph, iss,
-) -> dict | None:
-    """
-    High-resolution scan in the window ±FINE_WINDOW_S around a candidate.
-    Checks every observer point in the search radius; returns the best result.
-    """
-    earth    = eph["earth"]
+):
+    grid = observer_grid(center_lat, center_lon, radius_km)
+    if not grid:
+        return None
+
     body_eph = eph["sun"] if body_name == "sun" else eph["moon"]
-    r_deg    = SUN_RADIUS_DEG if body_name == "sun" else MOON_RADIUS_DEG
+    r_deg = SUN_RADIUS_DEG if body_name == "sun" else MOON_RADIUS_DEG
 
     n_fine = int(2 * FINE_WINDOW_S / FINE_STEP_S)
     tt = (t_cand_tt - FINE_WINDOW_S / 86400.0) + np.arange(n_fine) * (FINE_STEP_S / 86400.0)
     t_arr = ts.tt_jd(tt)
 
-    best: dict | None = None
+    r_iss = iss.at(t_arr).frame_xyz(itrs).km
+    r_body = (body_eph - eph["earth"]).at(t_arr).frame_xyz(itrs).km
 
-    for obs_lat, obs_lon in observers:
-        obs = wgs84.latlon(obs_lat, obs_lon)
+    grid_lats = np.array([p[0] for p in grid])
+    grid_lons = np.array([p[1] for p in grid])
+    topos_grid = wgs84.latlon(grid_lats, grid_lons)
+    r_obs = topos_grid.itrs_xyz.km
 
-        iss_alt, iss_az, _ = (iss - obs).at(t_arr).altaz()
-        b_alt, b_az, _     = (earth + obs).at(t_arr).observe(body_eph).apparent().altaz()
+    v_iss = r_iss[:, np.newaxis, :] - r_obs[:, :, np.newaxis]
+    v_body = r_body[:, np.newaxis, :] - r_obs[:, :, np.newaxis]
 
-        valid = (iss_alt.degrees > 0) & (b_alt.degrees > -1)
-        sep   = sep_vec(iss_alt.degrees, iss_az.degrees, b_alt.degrees, b_az.degrees)
-        sep[~valid] = 999.0
+    norm_obs = np.linalg.norm(r_obs, axis=0, keepdims=True)
+    u_up = r_obs / np.maximum(norm_obs, 1e-6)
 
-        idx     = int(np.argmin(sep))
-        min_sep = float(sep[idx])
+    norm_iss = np.linalg.norm(v_iss, axis=0)
+    norm_body = np.linalg.norm(v_body, axis=0)
 
-        if min_sep >= r_deg:
-            continue  # ISS misses the disk at this observer location
+    cos_zenith_iss = np.einsum('imn,im->mn', v_iss, u_up) / np.maximum(norm_iss, 1e-6)
+    cos_zenith_body = np.einsum('imn,im->mn', v_body, u_up) / np.maximum(norm_body, 1e-6)
 
-        # Duration: number of fine steps where ISS is inside the disk
-        in_disk    = valid & (sep < r_deg)
-        duration_s = float(np.sum(in_disk)) * FINE_STEP_S
+    valid = (cos_zenith_iss > 0.0) & (cos_zenith_body > -0.087)
 
-        # Single-point positions at the transit moment (for output)
-        t_transit  = ts.tt_jd(float(tt[idx]))
-        t_utc      = t_transit.utc_datetime()
-        ba, baz, _ = (earth + obs).at(t_transit).observe(body_eph).apparent().altaz()
+    dot = np.einsum('imn,imn->mn', v_iss, v_body)
+    cos_sep = np.clip(dot / np.maximum(norm_iss * norm_body, 1e-6), -1.0, 1.0)
+    sep_deg = np.degrees(np.arccos(cos_sep))
+    sep_deg[~valid] = 999.0
 
-        # ISS altitude/azimuth at transit moment
-        ia, iaz, _ = (iss - obs).at(t_transit).altaz()
+    min_sep = float(np.min(sep_deg))
+    if min_sep >= r_deg:
+        return None
 
-        # Distance of this observer from the search centre
-        clat, clon = observers[0]
-        dist_km = math.sqrt(
-            ((obs_lat - clat) * 111.0) ** 2 +
-            ((obs_lon - clon) * 111.0 * math.cos(math.radians(clat))) ** 2
-        )
+    m_best, n_best = np.unravel_index(np.argmin(sep_deg), sep_deg.shape)
+    best_lat, best_lon = grid[m_best]
 
-        entry = {
-            "time":        t_utc,
-            "tt":          float(tt[idx]),
-            "body":        body_name,
-            "min_sep_am":  min_sep * 60,
-            "r_am":        r_deg * 60,
-            "coverage":    chord_coverage(min_sep, r_deg),
-            "duration_s":  duration_s,
-            "body_alt":    ba.degrees,
-            "body_az":     baz.degrees,
-            "iss_alt":     ia.degrees,
-            "iss_az":      iaz.degrees,
-            "obs_lat":     obs_lat,
-            "obs_lon":     obs_lon,
-            "obs_dist_km": dist_km,
-        }
+    in_disk = valid[m_best, :] & (sep_deg[m_best, :] < r_deg)
+    duration_s = float(np.sum(in_disk)) * FINE_STEP_S
+    t_transit = t_arr[n_best]
 
-        if best is None or min_sep < best["min_sep_am"] / 60:
-            best = entry
+    topos_best = wgs84.latlon(best_lat, best_lon)
+    obs_best = eph["earth"] + topos_best
+    iss_alt, iss_az, _ = (iss - topos_best).at(t_transit).altaz()
+    b_alt, b_az, _ = obs_best.at(t_transit).observe(body_eph).apparent().altaz()
 
-    return best
-
-
-# ── Orchestration ──────────────────────────────────────────────────────────────
-
-def find_all_transits(
-    lat: float, lon: float, radius_km: float, days: int, ts, eph, iss
-) -> list[dict]:
-    observers = observer_ring(lat, lon, radius_km)
-    clustered, _ = coarse_scan(lat, lon, days, ts, eph, iss)
-
-    print(f"  Fine scan: analysing {len(clustered)} candidates ...", flush=True)
-
-    transits: list[dict] = []
-    seen: list[tuple[float, str]] = []   # (tt, body) of already-found transits
-
-    for t_cand, body in clustered:
-        # Skip if a transit for this body was already found at a nearby time
-        if any(abs(t_cand - st) * 86400 < DEDUP_S and sb == body for st, sb in seen):
-            continue
-
-        result = fine_scan(t_cand, body, observers, ts, eph, iss)
-        if result:
-            seen.append((result["tt"], body))
-            transits.append(result)
-
-    transits.sort(key=lambda x: x["time"])
-    return transits
-
-# ── Format output ──────────────────────────────────────────────────────────────
-
-def transits_to_dicts(transits: list[dict]) -> list[dict]:
-    """Convert internal transit result dicts into a clean, JSON-serializable list."""
-    result = []
-    for tr in transits:
-        result.append({
-            "body": tr["body"],
-            "time_utc": tr["time"].isoformat(),
-            "duration_seconds": tr["duration_s"],
-            "min_separation_arcsec": tr["min_sep_am"],
-            "disc_radius_arcsec": tr["r_am"],
-            "is_central_transit": tr["min_sep_am"] < tr["r_am"],
-            "chord_coverage_pct": tr["coverage"],
-            "iss_alt": tr["iss_alt"],
-            "iss_az": tr["iss_az"],
-            "body_alt": tr["body_alt"],
-            "body_az": tr["body_az"],
-            "best_lat": tr["obs_lat"],
-            "best_lon": tr["obs_lon"],
-            "obs_dist_km": tr["obs_dist_km"]
-        })
-    return result
-
-# ── Main function ────────────────────────────────────────────────────────────────
-
-def find_iss_transits(
-    lat: float,
-    lon: float,
-    radius: float = 50.0,
-    days: int = 30
-) -> dict:
-    """
-    Calculate ISS transits across the Sun and Moon for the next `days` days,
-    as seen from (lat, lon) within the given search radius.
-
-    Returns a dict with metadata about the search plus a list of transit results.
-    """
-
-    tle_name, line1, line2 = fetch_tle()
-
-    ts = load.timescale()
-    eph = load("de421.bsp")
-    iss = EarthSatellite(line1, line2, tle_name, ts)
-
-    tle_epoch = iss.epoch.utc_datetime()
-    age_days = (datetime.now(timezone.utc) - tle_epoch).total_seconds() / 86400
-
-    transits = find_all_transits(lat, lon, radius, days, ts, eph, iss)
-
-    result = {
-        "lat": lat,
-        "lon": lon,
-        "search_radius_km": radius,
-        "forecast_days": days,
-        "epoch_utc": tle_epoch.isoformat(),
-        "age_days": round(age_days, 1),
-        "transit_count": len(transits),
-        "transits": transits_to_dicts(transits)
+    return {
+        "body": body_name,
+        "time_utc": t_transit.utc_datetime(),
+        "iss_alt": float(iss_alt.degrees),
+        "iss_az": float(iss_az.degrees),
+        "best_lat": best_lat,
+        "best_lon": best_lon,
+        "obs_dist_km": haversine_km(center_lat, center_lon, best_lat, best_lon),
+        "duration": round(duration_s, 2),
+        "body_az": float(b_az.degrees),
+        "body_alt": float(b_alt.degrees),
     }
 
-    return pd.DataFrame(result)
+
+# ── Main Entry Function ───────────────────────────────────────────────────────
+
+def get_transit_dataframe(
+    lat: float,
+    lon: float,
+    radius: float,
+    days: int,
+    name: str = "ISS",
+    start_time=None,
+) -> pd.DataFrame:
+    """
+    Search for satellite transits and return a pandas DataFrame.
+    
+    Columns returned:
+      name, body, time_utc, iss_alt, iss_az, best_lat, best_lon, obs_dist_km, duration, body_az, body_alt
+    """
+    columns = [
+        "name", "body", "time_utc", "iss_alt", "iss_az",
+        "best_lat", "best_lon", "obs_dist_km", "duration",
+        "body_az", "body_alt"
+    ]
+
+    tle_name, line1, line2 = fetch_tle()
+    ts = load.timescale()
+    eph_path = "de421.bsp"
+    eph = load(eph_path)
+    iss = EarthSatellite(line1, line2, tle_name, ts)
+
+    candidates = coarse_scan(
+        lat, lon, days, ts, eph, iss, line1, line2, tle_name, eph_path, start_time
+    )
+
+    if not candidates:
+        return pd.DataFrame(columns=columns)
+
+    def _scan_worker(cand):
+        t_cand, body = cand
+        return fine_scan_radius(t_cand, body, lat, lon, radius, ts, eph, iss)
+
+    workers = min(FINE_WORKERS, len(candidates))
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        results = list(ex.map(_scan_worker, candidates))
+
+    rows = []
+    for r in results:
+        if r is not None:
+            rows.append({
+                "name": name,
+                "body": r["body"],
+                "time_utc": r["time_utc"],
+                "iss_alt": r["iss_alt"],
+                "iss_az": r["iss_az"],
+                "best_lat": r["best_lat"],
+                "best_lon": r["best_lon"],
+                "obs_dist_km": r["obs_dist_km"],
+                "duration": r["duration"],
+                "body_az": r["body_az"],
+                "body_alt": r["body_alt"],
+            })
+
+    df = pd.DataFrame(rows, columns=columns)
+    if not df.empty:
+        df.sort_values(by="time_utc", inplace=True)
+        df.reset_index(drop=True, inplace=True)
+
+    return df

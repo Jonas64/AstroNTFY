@@ -2,7 +2,15 @@ import requests
 import pandas as pd
 import base64
 from abc import ABC, abstractmethod
+#from pathlib import Path
+
 from functions import *
+
+# Test data directories
+#THIS_DIR = Path(__file__).parent
+#TEST_DATA_DIR = THIS_DIR.parent / "test_data"
+#transit_file_path = TEST_DATA_DIR / "transit_data.csv"
+#weather_file_path = TEST_DATA_DIR / "weather_data.csv"
 
 notification_priority = "3"
 
@@ -18,21 +26,25 @@ class BaseNotifier(ABC):
 
     def base_headers(self, title:str, click:str, x_attach:str) -> dict:
         """Creates the header dictionary"""
+        result = None
         if self.local_icon == "":
-            return {
+            result = {
                 "Title": title,
                 "Click": click,
                 "Priority": notification_priority,
                 "X-Attach": x_attach
             }
         else:
-            return {
+            result = {
                 "Title": title,
                 "Click": click,
                 "Priority": notification_priority,
-                #"X-Attach": x_attach,
                 "X-Filename": self.local_icon+".png"
             }
+        if not vb.redirect_to_website:
+            result.pop("Click", None)
+        
+        return result
 
     def validate_response(self, response:requests.Response):
         """Checks if response is ok and sets self.data accordingly"""
@@ -67,13 +79,28 @@ class BaseNotifier(ABC):
     def run(self, weather_df:pd.DataFrame) -> bool:
         """Fetches data and notifies of anything noteworthy"""
         self.weather_df = weather_df
+
+        # Save test weather data
+        #self.weather_df.to_csv(weather_file_path)
+
+        # Test weather data
+        #self.weather_df = pd.read_csv(weather_file_path)
+        #self.weather_df["time_utc"] = self.weather_df["time_utc"].apply(lambda t: to_datetime_utc(t))
+
         try:
             self.data = self.fetch_data()
         except Exception as e:
             print("Error in Base class method run()")
             print(e)
+
+        # Test transit data
+        #self.data = pd.read_csv(transit_file_path)
+        #self.data["time_utc"] = self.data["time_utc"].apply(lambda t: to_datetime_utc(t))
+
         if self.data is not None:
             self.data = self.parse_data()
+            
+            self.data.to_csv(transit_file_path)
             if self.is_notable():
                 weather_forecast = self.closest_weather_forecast()
                 msg = self.message()
