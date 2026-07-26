@@ -10,7 +10,7 @@ The current version has implemented notifications for:
 
 Every notification also includes the closest available weather forecast (cloud coverage and wind speed) to the relevant date and time.
 
-You can also include a sentence in the relevant notifications about whether or not any obstacles at your observation point will block the event as well as an image of your sky and where the transit or comet will be. More info on how this is done [below](#Observation-point-horizon).
+You can also include a sentence in the relevant notifications about whether or not any obstacles at your observation point will block the event as well as an image of your sky and where the transit or comet will be. More info on how this is done and what the result looks like [below](#Observation-point-horizon).
 
 # Minimal setup
 
@@ -55,6 +55,6 @@ Find the real azimuth for the landmark by standing exactly where you took the ph
 
 Now subtract the two and you're left with the horizon_north_offset variable that you set in [variables_example.py](variables_example.py).
 
-This is an example of an image you might receive with a notification showing where the comet will be in your sky. The stars look a little distorted along the top and bottom of the frame, but they should be accurate. 
+This is an example of an image you might receive with a notification showing where the comet will be in your sky.
 
 ![Notification example](readme_imgs/comet_notification_example.png)

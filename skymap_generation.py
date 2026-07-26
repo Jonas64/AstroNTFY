@@ -98,7 +98,7 @@ def generate_starmap(
             # Only label bright, named stars to avoid clutter
             if mag <= label_mag_limit and hip_id in STAR_NAMES:
                 name = STAR_NAMES[hip_id]
-                functions.draw_equirectangular_text(star_layer, name, (x + radius + (len(name)*7), y - 3), a, font)
+                functions.draw_equirectangular_text(star_layer, name, (x + radius + (len(name)*6), y - 3), a, font)
     
     img = Image.alpha_composite(img, star_layer)
     draw = ImageDraw.Draw(img, "RGBA")

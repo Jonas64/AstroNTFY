@@ -100,7 +100,8 @@ class BaseNotifier(ABC):
         if self.data is not None:
             self.data = self.parse_data()
             
-            self.data.to_csv(transit_file_path)
+            # Save transit data
+            #self.data.to_csv(transit_file_path)
             if self.is_notable():
                 weather_forecast = self.closest_weather_forecast()
                 msg = self.message()
