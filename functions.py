@@ -13,7 +13,6 @@ from PIL import Image, ImageDraw, ImageFont
 import variables as vb
 import skymap_generation
 
-localtime = ZoneInfo(vb.timezone)
 ntfy_url = f"https://ntfy.sh/{vb.topic}"
 
 font = ImageFont.truetype("Roboto-Regular.ttf", size=14)
@@ -112,7 +111,7 @@ def to_datetime_utc(time:str) -> datetime:
 
 def to_str_localtime(datetime_obj:datetime) -> str:
     """Returns a formatted readable string of the datetime UTC object in localtime"""
-    local_datetime = datetime_obj.astimezone(localtime)
+    local_datetime = datetime_obj.astimezone(vb.localtime)
     datetime_str = local_datetime.strftime("%A, %d. %B at %H:%M (%Y)") #%Z")
     return datetime_str
 

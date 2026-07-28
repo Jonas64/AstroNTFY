@@ -2,7 +2,7 @@ topic = "xxxx"                      # Your topic
 latitude = "52.5200"                # Your latitude
 longitude = "13.4050"               # Your longitude
 elevation = "38"                    # Your altitude in meters above sea level
-timezone = "Europe/Berlin"          # The timezone of where you will be observing from (IANA Time Zone Database)
+local_timezone = "Europe/Berlin"    # The timezone of where you will be observing from (IANA Time Zone Database)
 
 # Optional changes:
 kp_treshold = 6                     # If kp exceeds this value, you will be notified
@@ -29,3 +29,6 @@ timezones = sorted(zoneinfo.available_timezones())
 for t in timezones:
     print(t)
 """
+
+from zoneinfo import ZoneInfo
+localtime = ZoneInfo(local_timezone)
