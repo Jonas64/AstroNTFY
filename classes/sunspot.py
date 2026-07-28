@@ -51,11 +51,11 @@ class SunspotNotifier(BaseNotifier):
         big_sunspot_count = sum(self.data["Area"] > 275)
 
         if sum_area > total_sunspot_area_treshold:
-            self.data_poi = pd.Series({
+            self.data_poi = pd.DataFrame([{
                 "total_area": sum_area,
                 "big_sunspot_count": big_sunspot_count,
                 "time_utc": self.data["time_utc"].iloc[0]
-            })
+            }])
             return True
         else:
             self.data_poi = None

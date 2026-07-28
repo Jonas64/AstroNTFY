@@ -19,7 +19,7 @@ class TransitNotifier(BaseNotifier):
     def is_notable(self) -> bool:
         # Transits always notify, so this will pick the first one if there are any
         if len(self.data) > 0:
-            self.data_poi = self.data.iloc[0]
+            self.data_poi = self.data.iloc[[0]].copy()
             if self.data_poi.empty:
                 return False
             return True

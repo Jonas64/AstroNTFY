@@ -19,7 +19,7 @@ class CometNotifier(BaseNotifier):
 
     def is_notable(self) -> bool:
         if len(self.data) > 0:
-            self.data_poi = self.data.loc[self.data["magnitude"].idxmax()]
+            self.data_poi = self.data.loc[self.data["magnitude"].idxmax()].copy()
             self.data_poi["time_utc"] = to_datetime_utc(self.data_poi["best_time"]+"Z")
             return True
         self.data_poi = None

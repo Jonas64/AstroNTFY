@@ -26,7 +26,7 @@ class NorthernLightsNotifier(BaseNotifier):
         return pd.DataFrame(forecast)
 
     def is_notable(self) -> bool:
-        max_kp_row = self.data.loc[self.data["kp"].idxmax()]
+        max_kp_row = self.data.loc[[self.data["kp"].idxmax()]].copy()
         
         if max_kp_row["kp"] > kp_treshold:
             self.data_poi = max_kp_row
