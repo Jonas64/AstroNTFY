@@ -27,10 +27,10 @@ class TransitNotifier(BaseNotifier):
     
     def message(self) -> str:
         total_count = len(self.data)
-        body = self.data_poi["body"]
-        time_utc = self.data_poi["time_utc"]
-        name = self.data_poi["name"]
-        alt, az = self.data_poi["iss_alt"], self.data_poi["iss_az"]
+        body = self.data_poi["body"].iloc[0]
+        time_utc = self.data_poi["time_utc"].iloc[0]
+        name = self.data_poi["name"].iloc[0]
+        alt, az = self.data_poi["iss_alt"].iloc[0], self.data_poi["iss_az"].iloc[0]
 
         if include_observation_horizon:
             if get_visibility(az, alt):
@@ -44,13 +44,14 @@ class TransitNotifier(BaseNotifier):
         if body == "moon":
             transit_type = "lunar"
         if total_count == 1:
-            return f"On {to_str_localtime(time_utc)} there will be a {transit_type} transit of {name} with a duration of {self.data_poi["duration"]} s. {visible_str}"
+            return f"On {to_str_localtime(time_utc)} there will be a {transit_type} transit of {name} with a duration of {self.data_poi["duration"].iloc[0]} s. {visible_str}"
         else:
-            return f"The first transit will occur on {to_str_localtime(time_utc)}, this will be a {transit_type} transit of {name} with a duration of {self.data_poi["duration"]} s. {visible_str}"
+            return f"The first transit will occur on {to_str_localtime(time_utc)}, this will be a {transit_type} transit of {name} with a duration of {self.data_poi["duration"].iloc[0]} s. {visible_str}"
 
     def headers(self) -> dict:
-        generate_horizon_img(self.data_poi["iss_az"], self.data_poi["iss_alt"], "transit", self.data_poi["time_utc"], self.data_poi["best_lat"], self.data_poi["best_lon"])
-        if self.data_poi["body"] == "moon":
+        if include_observation_horizon:
+            generate_horizon_img(self.data_poi["iss_az"].iloc[0], self.data_poi["iss_alt"].iloc[0], "transit", self.data_poi["time_utc"].iloc[0], self.data_poi["best_lat"].iloc[0], self.data_poi["best_lon"].iloc[0])
+        if self.data_poi["body"].iloc[0] == "moon":
             title = "Lunar transit"
             transit_img_url = lunar_transit_img_url
         else:

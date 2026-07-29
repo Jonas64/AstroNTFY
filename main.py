@@ -1,17 +1,15 @@
 from datetime import datetime
-from zoneinfo import ZoneInfo
 
 from classes import *
 from variables import *
 from functions import *
 
-localtime = ZoneInfo(timezone)
-
 notifiers = {
     "northern_lights": NorthernLightsNotifier(""),
     "transit": TransitNotifier("transit"),
     "sunspot": SunspotNotifier(""),
-    "comet": CometNotifier("comet")
+    "comet": CometNotifier("comet"),
+    "eclipse": EclipseNotifier("eclipse")
 }
 
 weather_forecast = pd.DataFrame()

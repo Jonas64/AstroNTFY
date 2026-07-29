@@ -107,12 +107,12 @@ def weather() -> pd.DataFrame:
 
 def to_datetime_utc(time:str) -> datetime:
     """Returns the datetime object of a string in UTC time"""
-    return datetime.fromisoformat(time)
+    return datetime.fromisoformat(time).replace(tzinfo=ZoneInfo("UTC"))
 
 def to_str_localtime(datetime_obj:datetime) -> str:
     """Returns a formatted readable string of the datetime UTC object in localtime"""
     local_datetime = datetime_obj.astimezone(vb.localtime)
-    datetime_str = local_datetime.strftime("%A, %d. %B at %H:%M (%Y)") #%Z")
+    datetime_str = local_datetime.strftime("%A, %d. %B at %H:%M (%Y)")
     return datetime_str
 
 def apply_north_offset(img: Image.Image, offset_deg: float) -> Image.Image:
@@ -124,7 +124,7 @@ def apply_north_offset(img: Image.Image, offset_deg: float) -> Image.Image:
     shifted_np = np.roll(img_np, shift=offset_px, axis=1)  # axis=1 = horizontal roll
     return Image.fromarray(shifted_np)
 
-def generate_horizon_img(az:float, alt:float, name:str, time:datetime, lat:float, lon:float):
+def generate_horizon_img(az:float, alt:float, name:str, time:datetime, lat:float, lon:float) -> None:
     """Creates and saves a flattened image of the horizon including a circle of where the event will happen"""
     coords = degrees_to_pixels(az, alt)
 
@@ -133,17 +133,20 @@ def generate_horizon_img(az:float, alt:float, name:str, time:datetime, lat:float
     horizon = Image.open("obs_horizon/horizon.png").convert("RGBA")
     horizon = apply_north_offset(horizon, vb.horizon_north_offset)
     starmap = Image.open(f"starmaps/{name}.png").convert("RGBA")
-    horizon_img_draw = Image.alpha_composite(starmap, horizon)#.resize(horizon.size), horizon)
-
-    draw = ImageDraw.Draw(horizon_img_draw)
-    draw.circle((coords), 2, fill=(255, 255, 255))
+    horizon_img_draw = Image.alpha_composite(starmap.resize(horizon.size), horizon)
+    
+    txt = ""
+    offset_x = 0
     if name == "comet":
         txt = "Comet"
         offset_x = 25
-    else:
+    elif name == "ISS":
         txt = "ISS"
         offset_x = 35
-    draw_equirectangular_text(horizon_img_draw, txt, (coords[0]-offset_x, coords[1]-3), alt, font)
+    if name != "eclipse":
+        draw = ImageDraw.Draw(horizon_img_draw)
+        draw.circle((coords), 2, fill=(255, 255, 255))
+        draw_equirectangular_text(horizon_img_draw, txt, (coords[0]-offset_x, coords[1]-3), alt, font)
 
     fov = 75
     res = 512
@@ -157,7 +160,8 @@ def generate_horizon_img(az:float, alt:float, name:str, time:datetime, lat:float
     flat_img = Image.fromarray(flat_np.astype(np.uint8))
     flat_img.save("icons/"+name+".png")
 
-def draw_equirectangular_text(base_img, text, position, latitude_deg, font_):
+def draw_equirectangular_text(base_img, text, position, latitude_deg, font_) -> None:
+    """Draws text on base_img that is stretched to not look distorted when base_img is flattened"""
     # 1. Convert latitude to radians
     lat_rad = math.radians(latitude_deg)
     
@@ -214,6 +218,65 @@ def degrees_to_pixels(az:float, alt:float) -> tuple:
     x = int((az / 360) * width)
     y = int(((90 - alt) / 180) * height)
     return (x, y)
+
+def calculate_local_lunar_eclipse(t_start:datetime, t_greatest:datetime, t_end:datetime, magnitude:float) -> dict:#eclipse_data: dict, lat: float, lon: float):
+    """
+    Calculates local visibility, Alt/Az, and peak position for a lunar eclipse.
+    """
+    # Load ephemeris data (downloads de421.bsp on first run)
+    ts = load.timescale()
+    eph = load('de421.bsp')
+    earth, moon = eph['earth'], eph['moon']
+
+    # Define the local observer
+    observer = earth + wgs84.latlon(float(vb.latitude), float(vb.longitude))
+
+    # Helper function to compute Altitude & Azimuth at a specific instant
+    def get_moon_altaz(t):
+        alt, az, _ = observer.at(ts.from_datetime(t)).observe(moon).apparent().altaz()
+        return round(alt.degrees, 2), round(az.degrees, 2)
+
+    alt_start, az_start = get_moon_altaz(t_start)
+    alt_great, az_great = get_moon_altaz(t_greatest)
+    alt_end, az_end = get_moon_altaz(t_end)
+
+    # 2. Find Maximum Altitude/Azimuth during the entire eclipse window
+    # Sample position every 2 minutes across the duration
+    minutes_duration = int((t_end - t_start).total_seconds() // 60)
+    
+    # Create array of Skyfield Time objects across the span
+    sample_times = ts.utc(
+        t_start.year,
+        t_start.month,
+        t_start.day,
+        t_start.hour,
+        t_start.minute + np.arange(0, minutes_duration + 1, 2)
+    )
+
+    sample_alts, sample_azs, _ = observer.at(sample_times).observe(moon).apparent().altaz()
+    
+    # Locate highest point in sky
+    max_alt_idx = np.argmax(sample_alts.degrees)
+    max_sky_alt = round(sample_alts.degrees[max_alt_idx], 2)
+    max_sky_az = round(sample_azs.degrees[max_alt_idx], 2)
+
+    return {
+        "magnitude": magnitude,
+        "global_times_utc": {
+            "begins_P1": t_start,
+            "greatest": t_greatest,
+            "ends_P2": t_end
+        },
+        "local_positions": {
+            "at_start": {"alt": alt_start, "az": az_start},
+            "at_greatest": {"alt": alt_great, "az": az_great},
+            "at_end": {"alt": alt_end, "az": az_end}
+        },
+        "highest_position_in_sky": {
+            "altitude": max_sky_alt,
+            "azimuth": max_sky_az,
+        }
+    }
 
 def notify(message:str, headers:dict, local_icon:str, tries:int=0, limit_tries:int=5) -> bool:
     """Sends the post request to send a notification"""

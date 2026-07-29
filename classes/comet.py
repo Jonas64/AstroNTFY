@@ -20,7 +20,7 @@ class CometNotifier(BaseNotifier):
     def is_notable(self) -> bool:
         if len(self.data) > 0:
             self.data_poi = self.data.loc[self.data["magnitude"].idxmax()].copy()
-            self.data_poi["time_utc"] = to_datetime_utc(self.data_poi["best_time"]+"Z")
+            self.data_poi["time_utc"] = to_datetime_utc(self.data_poi["best_time"])
             return True
         self.data_poi = None
         return False
@@ -41,10 +41,11 @@ class CometNotifier(BaseNotifier):
         else:
             visible_str = ""
         
-        return f"Comet {comet_fullname} with a magnitude of {comet_mag} and a maximum altitude of {altitude} will be the most visable at {best_viewing_time}. {visible_str}"
+        return f"Comet {comet_fullname} with a magnitude of {comet_mag} and a maximum altitude of {altitude}° will be the most visable at {best_viewing_time}. {visible_str}"
 
     def headers(self) -> dict:
-        generate_horizon_img(self.data_poi["best_az"], self.data_poi["best_alt"], "comet", self.data_poi["time_utc"], float(latitude), float(longitude))
+        if include_observation_horizon:
+            generate_horizon_img(self.data_poi["best_az"], self.data_poi["best_alt"], "comet", self.data_poi["time_utc"], float(latitude), float(longitude))
         if len(self.data) > 1:
             title = "Potentially multiple visable comets"
         else:

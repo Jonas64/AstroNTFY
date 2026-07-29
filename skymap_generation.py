@@ -98,7 +98,7 @@ def generate_starmap(
             # Only label bright, named stars to avoid clutter
             if mag <= label_mag_limit and hip_id in STAR_NAMES:
                 name = STAR_NAMES[hip_id]
-                functions.draw_equirectangular_text(star_layer, name, (x + radius + (len(name)*6), y - 3), a, font)
+                functions.draw_equirectangular_text(star_layer, name, (x + radius + int(len(name)*5.8), y - 3), a, font)
     
     img = Image.alpha_composite(img, star_layer)
     draw = ImageDraw.Draw(img, "RGBA")
@@ -113,16 +113,16 @@ def generate_starmap(
         [sun_x - sun_x_radius, (sun_y - sun_radius), (sun_x + sun_x_radius), sun_y + sun_radius],
         fill=(255, 209, 26),
     )
-    functions.draw_equirectangular_text(img, "Sun", (sun_x+40, sun_y-3), sun_alt.degrees, bigger_font)
+    functions.draw_equirectangular_text(img, "Sun", (sun_x, sun_y-25), sun_alt.degrees, bigger_font)
     draw.ellipse(
         [moon_x - moon_x_radius, (moon_y - moon_radius), (moon_x + moon_x_radius), moon_y + moon_radius],
         fill=(140, 140, 140),
     )
-    functions.draw_equirectangular_text(img, "Moon", (moon_x+55, moon_y-3), moon_alt.degrees, bigger_font)
+    functions.draw_equirectangular_text(img, "Moon", (moon_x+50, moon_y-3), moon_alt.degrees, bigger_font)
 
     img.save(f"starmaps/{event_name}.png")
 
-def translate(value, leftMin, leftMax, rightMin, rightMax):
+def translate(value:float, leftMin:float, leftMax:float, rightMin:float, rightMax:float) -> float:
     # Figure out how 'wide' each range is
     leftSpan = leftMax - leftMin
     rightSpan = rightMax - rightMin

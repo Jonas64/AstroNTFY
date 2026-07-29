@@ -18,7 +18,7 @@ class NorthernLightsNotifier(BaseNotifier):
         for data_point in data_json:
             if data_point["observed"] != "observed": # If datapoint is a prediction, not observation
                 forecast.append({
-                    "time_utc": to_datetime_utc(data_point["time_tag"]+"Z"),
+                    "time_utc": to_datetime_utc(data_point["time_tag"]),
                     "kp": data_point["kp"],
                     "noaa_scale": data_point["noaa_scale"]
                 })
@@ -28,18 +28,18 @@ class NorthernLightsNotifier(BaseNotifier):
     def is_notable(self) -> bool:
         max_kp_row = self.data.loc[[self.data["kp"].idxmax()]].copy()
         
-        if max_kp_row["kp"] > kp_treshold:
+        if max_kp_row["kp"].iloc[0] > kp_treshold:
             self.data_poi = max_kp_row
             return True
         self.data_poi = None
         return False
 
     def message(self) -> str:
-        return f"Predictions show a chance of kp {self.data_poi['kp']} on {to_str_localtime(self.data_poi["time_utc"])}"
+        return f"Predictions show a chance of kp {self.data_poi['kp'].iloc[0]} on {to_str_localtime(self.data_poi["time_utc"].iloc[0])}"
     
     def headers(self) -> dict:
         return self.base_headers(
-            f"Chance for northern lights (kp {self.data_poi['kp']})",
+            f"Chance for northern lights (kp {self.data_poi['kp'].iloc[0]})",
             northern_lights_url,
             northern_lights_img_url
         )

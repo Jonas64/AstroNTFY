@@ -62,10 +62,10 @@ class SunspotNotifier(BaseNotifier):
             return False
 
     def message(self) -> str:
-        if self.data_poi["big_sunspot_count"] == 1:
-            msg = f"There is {self.data_poi["big_sunspot_count"]} big sunspot on the sun, total area of all spots, {self.data_poi["total_area"]} MH"
+        if self.data_poi["big_sunspot_count"].iloc[0] == 1:
+            msg = f"There is {self.data_poi["big_sunspot_count"].iloc[0]} big sunspot on the sun, total area of all spots, {self.data_poi["total_area"].iloc[0]} MH"
         else:
-            msg = f"There are {self.data_poi["big_sunspot_count"]} big sunspots on the sun, total area of all spots, {self.data_poi["total_area"]} MH"
+            msg = f"There are {self.data_poi["big_sunspot_count"].iloc[0]} big sunspots on the sun, total area of all spots, {self.data_poi["total_area"].iloc[0]} MH"
         return msg
 
     def headers(self) -> dict:

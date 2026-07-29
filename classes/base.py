@@ -4,7 +4,8 @@ import base64
 from abc import ABC, abstractmethod
 #from pathlib import Path
 
-from functions import *
+import functions as fn
+import variables as vb
 
 # Test data directories
 #THIS_DIR = Path(__file__).parent
@@ -46,7 +47,7 @@ class BaseNotifier(ABC):
         
         return result
 
-    def validate_response(self, response:requests.Response):
+    def validate_response(self, response:requests.Response) -> requests.Response | None:
         """Checks if response is ok and sets self.data accordingly"""
         if response.ok:
             return response
@@ -69,7 +70,7 @@ class BaseNotifier(ABC):
         """Returns the final message with a weather forecast at the end"""
         final_msg = msg
 
-        delta_str = format_delta(weather_forecast["delta_time"].iloc[0])
+        delta_str = fn.format_delta(weather_forecast["delta_time"].iloc[0])
         final_msg += f"\n\nHere is the closest weather forecast available ({delta_str}):\n"
         final_msg += f"Cloud coverage: {weather_forecast["cloud_area_fraction"].iloc[0]} %\n"
         final_msg += f"Wind speed: {weather_forecast["wind_speed"].iloc[0]} m/s"
@@ -119,11 +120,11 @@ class BaseNotifier(ABC):
                     print(hdrs["Title"])
                     print(msg)
                 if self.notify_:
-                    return notify(msg, hdrs, self.local_icon)
+                    return fn.notify(msg, hdrs, self.local_icon)
                 return False
     
     @abstractmethod
-    def fetch_data(self):
+    def fetch_data(self) -> requests.Response | dict | None:
         """Get raw data from URL"""
 
     @abstractmethod

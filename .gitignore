@@ -8,8 +8,10 @@ hip_main.dat
 obs_horizon/horizon.png
 icons/comet.png
 icons/transit.png
+icons/eclipse.png
 starmaps/comet.png
 starmaps/transit.png
+starmaps/eclipse.png
 test_data
 testing
 movie.gif

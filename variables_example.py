@@ -14,13 +14,16 @@ horizon_north_offset = 0            # How many degrees offset is your image from
 
 redirect_to_website = False         # Decides if you should be redirected to a relevant website when clicking a notification (True/False)
 
+days_in_advance = 30                # How many days in advance of solar/lunar eclipses you will recieve notifications
+
 # ((from month, to month), should this event notify you? (True/False))
 # E.g. ("Jan", "Dec") will notify you the whole year, ("Apr", "Sep") will notify you from april to september
 notification_info = {
     "northern_lights":  (("Jan", "Dec"), True),
     "transit":          (("Jan", "Dec"), True),
     "sunspot":          (("Jan", "Dec"), True),
-    "comet":            (("Jan", "Dec"), True)
+    "comet":            (("Jan", "Dec"), True),
+    "eclipse":          (("Jan", "Dec"), True)
 }
 
 """ Prints all available timezones
