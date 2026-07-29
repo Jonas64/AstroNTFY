@@ -7,6 +7,7 @@ The current version has implemented notifications for:
 2. ISS solar/lunar transits
 3. Many/big sunspots
 4. Comets
+5. Lunar/solar eclipses
 
 Every notification also includes the closest available weather forecast (cloud coverage and wind speed) to the relevant date and time.
 
@@ -29,6 +30,8 @@ Create a new topic in the app with a cryptic name that people won't guess. I use
 
 ## Final setup
 Finally, fill in the variables (latitude/longitude, elevation, ntfy topic, timezone) in [variables_example.py](variables_example.py) and rename it to variables.py. There are also other variables for more control over the notifications, that is documented there.
+
+Currently, you need to run the [main.py](main.py) file to check for all events and notify. You could for example have it run once every day using you operating systems task scheduler. 
 
 # Optional
 
