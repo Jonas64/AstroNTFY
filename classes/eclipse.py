@@ -146,14 +146,20 @@ class EclipseNotifier(BaseNotifier):
             body_str = "lunar"
 
         if include_observation_horizon:
-            if get_visibility(self.data_poi["maximum_az"].iloc[0], self.data_poi["maximum_alt"].iloc[0]) and max_visible:
-                visible_str = "\nAt the eclipse's maximum, it will be visible from your observation point"                    
-            elif get_visibility(self.data_poi["begin_az"].iloc[0], self.data_poi["begin_alt"].iloc[0]) and begin_visible:
-                visible_str = "\nThe eclipse will be visible at the start of the event from your observation point, however you will not see the maximum of the eclipse due to obstacles"
-            elif get_visibility(self.data_poi["end_az"].iloc[0], self.data_poi["end_alt"].iloc[0]) and end_visible:
-                visible_str = "\nThe eclipse will be visible towards the end of the event from your observation point, however you will not see the maximum of the eclipse due to obstacles"
+            horizon_imgs_visibility_max = get_visibility(self.data_poi["maximum_az"].iloc[0], self.data_poi["maximum_alt"].iloc[0])
+            horizon_imgs_visibility_begin = get_visibility(self.data_poi["begin_az"].iloc[0], self.data_poi["begin_alt"].iloc[0])
+            horizon_imgs_visibility_end = get_visibility(self.data_poi["end_az"].iloc[0], self.data_poi["end_alt"].iloc[0])
+            if horizon_imgs_visibility_max[0] and max_visible:
+                visible_str = "\nAt the eclipse's maximum, it will be visible from "+horizon_imgs_visibility_max[1]
+                self.visible_from_horizon = horizon_imgs_visibility_max[2][0]
+            elif horizon_imgs_visibility_begin[0] and begin_visible:
+                visible_str = f"\nThe eclipse will be visible at the start of the event from {horizon_imgs_visibility_max[1]}, however you will not see the maximum of the eclipse due to obstacles"
+                self.visible_from_horizon = horizon_imgs_visibility_begin[2][0]
+            elif horizon_imgs_visibility_end[0] and end_visible:
+                visible_str = f"\nThe eclipse will be visible towards the end of the event from your {horizon_imgs_visibility_max[1]}, however you will not see the maximum of the eclipse due to obstacles"
+                self.visible_from_horizon = horizon_imgs_visibility_end[2][0]
             else:
-                visible_str = "\nThe eclipse will not at all be visible from your observation point"
+                visible_str = "\nThe eclipse will not at all be visible from any of your observation points"
         else:
             visible_str = ""
 
@@ -178,7 +184,7 @@ class EclipseNotifier(BaseNotifier):
             else:
                 best_alt, best_az = self.data_poi["end_alt"].iloc[0], self.data_poi["end_az"].iloc[0]
                 best_time = self.data_poi["end_utc"].iloc[0]
-            generate_horizon_img(best_az, best_alt, "eclipse", best_time, float(latitude), float(longitude))
+            generate_horizon_img(best_az, best_alt, "eclipse", best_time, float(latitude), float(longitude), self.visible_from_horizon)
         
         if self.data_poi["body"].iloc[0] == "sun":
             body_str = "solar"
