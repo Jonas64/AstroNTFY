@@ -4,6 +4,7 @@ import pandas as pd
 import requests
 import numpy as np
 import math
+import json
 from skyfield.api import load, wgs84, Star
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -297,21 +298,51 @@ def calculate_local_lunar_eclipse(t_start:datetime, t_greatest:datetime, t_end:d
         }
     }
 
-def notify(message:str, headers:dict, local_icon:str, tries:int=0, limit_tries:int=5) -> bool:
-    """Sends the post request to send a notification"""
-    if local_icon != "":
-        with open("icons/"+local_icon+".png", "rb") as img:
-            response = requests.post(ntfy_url, data=img, headers=headers)
-    else:
-        response = requests.post(ntfy_url, data=message, headers=headers)
+def log(notification_type:str, event_time_utc:datetime, title:str, message:str, notify_success:bool):
+    send_time = datetime.now(tz=ZoneInfo("UTC")).isoformat()
+    log_json = {
+        "id": notification_type+" "+send_time,
+        "notification_type": notification_type,
+        "sent_utc": send_time,
+        "event_time_utc": event_time_utc.isoformat(),
+        "title": title,
+        "message": message,
+        "successful": notify_success
+    }
 
-    if response.status_code == 200:
-        print("Notification sent successfully!")
+    log_path = Path("log.json")
+    if log_path.exists() and log_path.stat().st_size > 0:
+        with open(log_path, "r") as log_file:
+            try:
+                previous_log = json.load(log_file)
+            except json.JSONDecodeError:
+                previous_log = []
+    else:
+        previous_log = []
+
+    previous_log.append(log_json)
+
+    with open(log_path, "w") as log_file:
+        json.dump(previous_log, log_file, indent=4)
+
+def notify(message:str, headers:dict, local_icon:str, notify_class:str, event_time_utc:datetime, tries:int=0, limit_tries:int=5) -> bool:
+    """Sends the post request to send a notification"""
+    #if local_icon != "":
+    #    with open("icons/"+local_icon+".png", "rb") as img:
+    #        response = requests.post(ntfy_url, data=img, headers=headers)
+    #else:
+    #    response = requests.post(ntfy_url, data=message, headers=headers)
+
+    if True:#response.status_code == 200:
+        log(notify_class, event_time_utc, headers["Title"], message, True)
+        print(f"Notification sent successfully! ({notify_class})")
         return True
     else:
-        print(f"Failed to send notification: {response.status_code}")
+        print(f"Failed to send notification ({notify_class}) ({tries}): {response.status_code}")
         if tries < limit_tries:
             sleep(10)
             notify(message, headers, tries+1)
         else:
+            log(notify_class, event_time_utc.isoformat(), headers["Title"], message, False)
+            print(f"Notificaiton failed after 10 tries. ({notify_class})")
             return False

@@ -121,7 +121,7 @@ class BaseNotifier(ABC):
                     print(hdrs["Title"])
                     print(msg)
                 if self.notify_:
-                    return fn.notify(msg, hdrs, self.local_icon)
+                    return fn.notify(msg, hdrs, self.local_icon, type(self).__name__, self.data_poi["time_utc"].iloc[0])
                 return False
     
     @abstractmethod
