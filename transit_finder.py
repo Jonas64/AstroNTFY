@@ -13,11 +13,11 @@ Requirements:
 """
 
 import math
-import sys
 from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 import pandas as pd
 import requests
+from time import sleep
 from skyfield.api import load, wgs84, EarthSatellite
 from skyfield.framelib import itrs
 
@@ -44,11 +44,18 @@ GRID_TARGET_SPACING_KM = 6.0   # max distance between adjacent grid points
 def fetch_tle(norad: int = NORAD_ISS) -> tuple[str, str, str]:
     """Fetch current ISS TLE from Celestrak GP API."""
     url = f"https://celestrak.org/NORAD/elements/gp.php?CATNR={norad}&FORMAT=TLE"
-    r = requests.get(url, timeout=15)
-    r.raise_for_status()
+    for attempt in range(1, 11):
+        try:
+            r = requests.get(url, timeout=15)
+            r.raise_for_status()
+            break
+        except (requests.exceptions.Timeout, requests.exceptions.HTTPError):
+            if attempt == 10:
+                raise
+            sleep(20)
     lines = [ln.strip() for ln in r.text.splitlines() if ln.strip()]
     if len(lines) < 3:
-        sys.exit("[Error] Unexpected TLE format from Celestrak")
+        raise ValueError(f"[Error] Unexpected TLE format from Celestrak: {lines}")
     return lines[0], lines[1], lines[2]
 
 

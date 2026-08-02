@@ -151,15 +151,16 @@ class EclipseNotifier(BaseNotifier):
             horizon_imgs_visibility_end = get_visibility(self.data_poi["end_az"].iloc[0], self.data_poi["end_alt"].iloc[0])
             if horizon_imgs_visibility_max[0] and max_visible:
                 visible_str = "\nAt the eclipse's maximum, it will be visible from "+horizon_imgs_visibility_max[1]
-                self.visible_from_horizon = horizon_imgs_visibility_max[2][0]
+                self.visible_from_horizon = horizon_imgs_visibility_max
             elif horizon_imgs_visibility_begin[0] and begin_visible:
                 visible_str = f"\nThe eclipse will be visible at the start of the event from {horizon_imgs_visibility_max[1]}, however you will not see the maximum of the eclipse due to obstacles"
-                self.visible_from_horizon = horizon_imgs_visibility_begin[2][0]
+                self.visible_from_horizon = horizon_imgs_visibility_begin
             elif horizon_imgs_visibility_end[0] and end_visible:
                 visible_str = f"\nThe eclipse will be visible towards the end of the event from your {horizon_imgs_visibility_max[1]}, however you will not see the maximum of the eclipse due to obstacles"
-                self.visible_from_horizon = horizon_imgs_visibility_end[2][0]
+                self.visible_from_horizon = horizon_imgs_visibility_end
             else:
                 visible_str = "\nThe eclipse will not at all be visible from any of your observation points"
+                self.visible_from_horizon = horizon_imgs_visibility_max
         else:
             visible_str = ""
 
@@ -172,7 +173,7 @@ class EclipseNotifier(BaseNotifier):
         return msg+visible_str
 
     def headers(self) -> dict:
-        if include_observation_horizon:
+        if include_observation_horizon and self.visible_from_horizon[0]:
             best_alt, best_az = 0, 0
             best_time = None
             if self.data_poi["max_visible"].iloc[0]:
@@ -184,7 +185,7 @@ class EclipseNotifier(BaseNotifier):
             else:
                 best_alt, best_az = self.data_poi["end_alt"].iloc[0], self.data_poi["end_az"].iloc[0]
                 best_time = self.data_poi["end_utc"].iloc[0]
-            generate_horizon_img(best_az, best_alt, "eclipse", best_time, float(latitude), float(longitude), self.visible_from_horizon)
+            generate_horizon_img(best_az, best_alt, "eclipse", best_time, float(latitude), float(longitude), self.visible_from_horizon[2][0])
         
         if self.data_poi["body"].iloc[0] == "sun":
             body_str = "solar"
