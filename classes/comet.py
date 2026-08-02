@@ -35,9 +35,9 @@ class CometNotifier(BaseNotifier):
             _alt, azimuth = ra_dec_to_alt_az(self.data_poi["best_ra_float"], self.data_poi["best_dec"], self.data_poi["time_utc"])
             self.data_poi["best_az"] = azimuth
             horizon_imgs_visibility = get_visibility(azimuth, altitude)
+            self.visible_from_horizon = horizon_imgs_visibility
             if horizon_imgs_visibility[0]:
                 visible_str = "\nAt it's maximum altitude, the comet will be visible from "+horizon_imgs_visibility[1]
-                self.visible_from_horizon = horizon_imgs_visibility[2][0]
             else:
                 visible_str = "\nAt it's maximum altitude, the comet will not be visible from any of your observation points due to obstacles"
         else:
@@ -46,8 +46,8 @@ class CometNotifier(BaseNotifier):
         return f"Comet {comet_fullname} with a magnitude of {comet_mag} and a maximum altitude of {altitude}° will be the most visable at {best_viewing_time}. {visible_str}"
 
     def headers(self) -> dict:
-        if include_observation_horizon:
-            generate_horizon_img(self.data_poi["best_az"], self.data_poi["best_alt"], "comet", self.data_poi["time_utc"], float(latitude), float(longitude), self.visible_from_horizon)
+        if include_observation_horizon and self.visible_from_horizon[0]:
+            generate_horizon_img(self.data_poi["best_az"], self.data_poi["best_alt"], "comet", self.data_poi["time_utc"], float(latitude), float(longitude), self.visible_from_horizon[2][0])
         if len(self.data) > 1:
             title = "Potentially multiple visable comets"
         else:

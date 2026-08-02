@@ -177,9 +177,9 @@ def get_visibility(az:float, alt:float) -> tuple:
         image_alpha_samples[horizon_name] = a < 100
 
     visible_from_str = ""
+    visible_from_final_list = []
     if any(list(image_alpha_samples.values())):
         visible_from = []
-        visible_from_final_list = []
         for observation_point in image_alpha_samples:
             if image_alpha_samples[observation_point]:
                 visible_from.append(observation_point)
@@ -301,7 +301,7 @@ def calculate_local_lunar_eclipse(t_start:datetime, t_greatest:datetime, t_end:d
 def log(notification_type:str, event_time_utc:datetime, title:str, message:str, notify_success:bool):
     send_time = datetime.now(tz=ZoneInfo("UTC")).isoformat()
     log_json = {
-        "id": notification_type+" "+send_time,
+        "id": notification_type+" "+event_time_utc.isoformat(),
         "notification_type": notification_type,
         "sent_utc": send_time,
         "event_time_utc": event_time_utc.isoformat(),
@@ -325,15 +325,46 @@ def log(notification_type:str, event_time_utc:datetime, title:str, message:str, 
     with open(log_path, "w") as log_file:
         json.dump(previous_log, log_file, indent=4)
 
+def check_log(event_type:str, event_time_utc:datetime) -> bool:
+    log_path = Path("log.json")
+    if log_path.exists() and log_path.stat().st_size > 0:
+        with open(log_path, "r") as log_file:
+            log_list = json.load(log_file)
+    else:
+        return True
+    
+    relevant_events = []
+    for notification in log_list:
+        notification_id = notification["id"]
+        n_type, n_time_utc = notification_id.split(" ")
+        n_time_utc = datetime.fromisoformat(n_time_utc)
+        if n_type == event_type:
+            if abs((n_time_utc-event_time_utc).total_seconds())/60 < 10:
+                relevant_events.append((notification, n_time_utc))
+    
+    if len(relevant_events) == 0:
+        return True
+    else:
+        for event in relevant_events: # Check if the event is close and it should notify a second time
+            n_time_utc = event[1]
+            if int((n_time_utc-datetime.now(tz=ZoneInfo("UTC"))).days) == 3:
+                return True
+    return False
+
+
 def notify(message:str, headers:dict, local_icon:str, notify_class:str, event_time_utc:datetime, tries:int=0, limit_tries:int=5) -> bool:
     """Sends the post request to send a notification"""
-    #if local_icon != "":
-    #    with open("icons/"+local_icon+".png", "rb") as img:
-    #        response = requests.post(ntfy_url, data=img, headers=headers)
-    #else:
-    #    response = requests.post(ntfy_url, data=message, headers=headers)
+    if check_log(notify_class, event_time_utc):
+        if local_icon != "":
+            with open("icons/"+local_icon+".png", "rb") as img:
+                response = requests.post(ntfy_url, data=img, headers=headers)
+        else:
+            response = requests.post(ntfy_url, data=message, headers=headers)
+    else:
+        print(f"Notification not sent due to it being a copy. ({notify_class})")
+        return False
 
-    if True:#response.status_code == 200:
+    if response.status_code == 200:
         log(notify_class, event_time_utc, headers["Title"], message, True)
         print(f"Notification sent successfully! ({notify_class})")
         return True
