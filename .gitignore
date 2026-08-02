@@ -1,11 +1,13 @@
 venv
 variables.py
+variables_hjemme.py
 v1.py
 __pycache__
 .DS_Store
 de421.bsp
 hip_main.dat
-obs_horizon/horizon.png
+obs_horizon/*
+!obs_horizon/horizon_example.png
 icons/comet.png
 icons/transit.png
 icons/eclipse.png
@@ -15,3 +17,8 @@ starmaps/eclipse.png
 test_data
 testing
 movie.gif
+horizon.psd
+log.json
+horizon.psd
+log.json
+app.py

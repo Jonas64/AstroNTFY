@@ -4,11 +4,13 @@ import pandas as pd
 import requests
 import numpy as np
 import math
+import json
 from skyfield.api import load, wgs84, Star
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from time import sleep
 from PIL import Image, ImageDraw, ImageFont
+from pathlib import Path
 
 import variables as vb
 import skymap_generation
@@ -17,8 +19,20 @@ ntfy_url = f"https://ntfy.sh/{vb.topic}"
 
 font = ImageFont.truetype("Roboto-Regular.ttf", size=14)
 
+def apply_north_offset(img: Image.Image, offset_deg: float) -> Image.Image:
+    """Shifts the image horizontally so pixel x=0 corresponds to true north (az=0)."""
+    width, height = img.size
+    offset_px = int((offset_deg / 360) * width)
+
+    img_np = np.array(img)
+    shifted_np = np.roll(img_np, shift=offset_px, axis=1)  # axis=1 = horizontal roll
+    return Image.fromarray(shifted_np)
+
+horizon_imgs = {}
 if vb.include_observation_horizon:
-    horizon = Image.open("obs_horizon/horizon.png").convert("RGBA")
+    for horizon_path in vb.path_horizon_imgs.iterdir():
+        if Path(horizon_path).name[-4:] == ".png" and Path(horizon_path).name != "horizon_example.png":
+            horizon_imgs[Path(horizon_path).name[:-4]] = apply_north_offset(Image.open(horizon_path).convert("RGBA"), vb.horizon_north_offset[Path(horizon_path).name[:-4]])
 
 def dms_to_decimal(dms_str: str) -> float:
     """
@@ -78,7 +92,7 @@ def format_delta(delta) -> str:
             parts.append(f"{days}day")
         else:
             parts.append(f"{days}days")
-    if hours > 0 or days > 0:  # show hours if there are days, even if hours=0
+    if hours > 0 or days > 0:
         parts.append(f"{hours}h")
     parts.append(f"{minutes}min")
 
@@ -115,23 +129,13 @@ def to_str_localtime(datetime_obj:datetime) -> str:
     datetime_str = local_datetime.strftime("%A, %d. %B at %H:%M (%Y)")
     return datetime_str
 
-def apply_north_offset(img: Image.Image, offset_deg: float) -> Image.Image:
-    """Shifts the image horizontally so pixel x=0 corresponds to true north (az=0)."""
-    width, height = img.size
-    offset_px = int((offset_deg / 360) * width)
-
-    img_np = np.array(img)
-    shifted_np = np.roll(img_np, shift=offset_px, axis=1)  # axis=1 = horizontal roll
-    return Image.fromarray(shifted_np)
-
-def generate_horizon_img(az:float, alt:float, name:str, time:datetime, lat:float, lon:float) -> None:
+def generate_horizon_img(az:float, alt:float, name:str, time:datetime, lat:float, lon:float, horizon_name:str) -> None:
     """Creates and saves a flattened image of the horizon including a circle of where the event will happen"""
     coords = degrees_to_pixels(az, alt)
 
     skymap_generation.generate_starmap(lat, lon, time, name)
 
-    horizon = Image.open("obs_horizon/horizon.png").convert("RGBA")
-    horizon = apply_north_offset(horizon, vb.horizon_north_offset)
+    horizon = horizon_imgs[horizon_name]
     starmap = Image.open(f"starmaps/{name}.png").convert("RGBA")
     horizon_img_draw = Image.alpha_composite(starmap.resize(horizon.size), horizon)
     
@@ -160,13 +164,40 @@ def generate_horizon_img(az:float, alt:float, name:str, time:datetime, lat:float
     flat_img = Image.fromarray(flat_np.astype(np.uint8))
     flat_img.save("icons/"+name+".png")
 
+def get_visibility(az:float, alt:float) -> tuple:
+    """
+    Checks with the horizon 360 image if the inputted alt/az is blocked by obstacles or not
+    Returns a tuple containing (bool if event is visible from any horizon, string of all places the event is visible from, list of the same places)
+    """
+    coords = degrees_to_pixels(az, alt)
+
+    image_alpha_samples = {}
+    for horizon_name, horizon_img in horizon_imgs.items():
+        r, g, b, a = horizon_img.getpixel(coords)
+        image_alpha_samples[horizon_name] = a < 100
+
+    visible_from_str = ""
+    visible_from_final_list = []
+    if any(list(image_alpha_samples.values())):
+        visible_from = []
+        for observation_point in image_alpha_samples:
+            if image_alpha_samples[observation_point]:
+                visible_from.append(observation_point)
+                visible_from_final_list.append(observation_point)
+                visible_from.append(", ")
+        visible_from.pop()
+        if len(visible_from) > 1:
+            visible_from.pop(-2)
+            visible_from.insert(-1, " and ")
+        visible_from_str = "".join(visible_from)
+    return (any(image_alpha_samples.values()), visible_from_str, visible_from_final_list)
+
 def draw_equirectangular_text(base_img, text, position, latitude_deg, font_) -> None:
     """Draws text on base_img that is stretched to not look distorted when base_img is flattened"""
     # 1. Convert latitude to radians
     lat_rad = math.radians(latitude_deg)
     
     # 2. Calculate the horizontal compression factor
-    # This is the inverse of the map's stretching factor
     scale_x = 1/math.cos(lat_rad)
     
     # Avoid division or collapsing at the absolute poles
@@ -200,26 +231,15 @@ def draw_equirectangular_text(base_img, text, position, latitude_deg, font_) -> 
     
     base_img.paste(compressed_text, (int(paste_x), int(paste_y)), compressed_text)
 
-def get_visibility(az:float, alt:float) -> bool:
-    """
-    Checks with the horizon 360 image if the inputted alt/az is blocked by obstacles or not
-    """
-    az += vb.horizon_north_offset
-    az = az%360
-    coords = degrees_to_pixels(az, alt)
-    r, g, b, a = horizon.getpixel(coords)
-
-    return a < 100
-
 def degrees_to_pixels(az:float, alt:float) -> tuple:
     """Converts alt/az to pixels"""
-    width, height = horizon.size
+    width, height = list(horizon_imgs.values())[0].size
     az = az % 360
     x = int((az / 360) * width)
     y = int(((90 - alt) / 180) * height)
     return (x, y)
 
-def calculate_local_lunar_eclipse(t_start:datetime, t_greatest:datetime, t_end:datetime, magnitude:float) -> dict:#eclipse_data: dict, lat: float, lon: float):
+def calculate_local_lunar_eclipse(t_start:datetime, t_greatest:datetime, t_end:datetime, magnitude:float) -> dict:
     """
     Calculates local visibility, Alt/Az, and peak position for a lunar eclipse.
     """
@@ -278,21 +298,82 @@ def calculate_local_lunar_eclipse(t_start:datetime, t_greatest:datetime, t_end:d
         }
     }
 
-def notify(message:str, headers:dict, local_icon:str, tries:int=0, limit_tries:int=5) -> bool:
-    """Sends the post request to send a notification"""
-    if local_icon != "":
-        with open("icons/"+local_icon+".png", "rb") as img:
-            response = requests.post(ntfy_url, data=img, headers=headers)
-    else:
-        response = requests.post(ntfy_url, data=message, headers=headers)
+def log(notification_type:str, event_time_utc:datetime, title:str, message:str, notify_success:bool):
+    send_time = datetime.now(tz=ZoneInfo("UTC")).isoformat()
+    log_json = {
+        "id": notification_type+" "+event_time_utc.isoformat(),
+        "notification_type": notification_type,
+        "sent_utc": send_time,
+        "event_time_utc": event_time_utc.isoformat(),
+        "title": title,
+        "message": message,
+        "successful": notify_success
+    }
 
-    if response.status_code == 200:
-        print("Notification sent successfully!")
+    log_path = Path("log.json")
+    if log_path.exists() and log_path.stat().st_size > 0:
+        with open(log_path, "r") as log_file:
+            try:
+                previous_log = json.load(log_file)
+            except json.JSONDecodeError:
+                previous_log = []
+    else:
+        previous_log = []
+
+    previous_log.append(log_json)
+
+    with open(log_path, "w") as log_file:
+        json.dump(previous_log, log_file, indent=4)
+
+def check_log(event_type:str, event_time_utc:datetime) -> bool:
+    log_path = Path("log.json")
+    if log_path.exists() and log_path.stat().st_size > 0:
+        with open(log_path, "r") as log_file:
+            log_list = json.load(log_file)
+    else:
+        return True
+    
+    relevant_events = []
+    for notification in log_list:
+        notification_id = notification["id"]
+        n_type, n_time_utc = notification_id.split(" ")
+        n_time_utc = datetime.fromisoformat(n_time_utc)
+        if n_type == event_type:
+            if abs((n_time_utc-event_time_utc).total_seconds())/60 < 10:
+                relevant_events.append((notification, n_time_utc))
+    
+    if len(relevant_events) == 0:
         return True
     else:
-        print(f"Failed to send notification: {response.status_code}")
+        for event in relevant_events: # Check if the event is close and it should notify a second time
+            n_time_utc = event[1]
+            if int((n_time_utc-datetime.now(tz=ZoneInfo("UTC"))).days) == 3:
+                return True
+    return False
+
+
+def notify(message:str, headers:dict, local_icon:str, notify_class:str, event_time_utc:datetime, tries:int=0, limit_tries:int=5) -> bool:
+    """Sends the post request to send a notification"""
+    if check_log(notify_class, event_time_utc):
+        if local_icon != "":
+            with open("icons/"+local_icon+".png", "rb") as img:
+                response = requests.post(ntfy_url, data=img, headers=headers)
+        else:
+            response = requests.post(ntfy_url, data=message, headers=headers)
+    else:
+        print(f"Notification not sent due to it being a copy. ({notify_class})")
+        return False
+
+    if response.status_code == 200:
+        log(notify_class, event_time_utc, headers["Title"], message, True)
+        print(f"Notification sent successfully! ({notify_class})")
+        return True
+    else:
+        print(f"Failed to send notification ({notify_class}) ({tries}): {response.status_code}")
         if tries < limit_tries:
             sleep(10)
             notify(message, headers, tries+1)
         else:
+            log(notify_class, event_time_utc.isoformat(), headers["Title"], message, False)
+            print(f"Notificaiton failed after 10 tries. ({notify_class})")
             return False

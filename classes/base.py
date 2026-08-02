@@ -21,8 +21,9 @@ class BaseNotifier(ABC):
         self.notify_ = notify_
         self.print_message = print_message
         self.data = None
-        self.data_poi = None # Data point of interest
+        self.data_poi = None
         self.weather_df = None
+        self.visible_from_horizon = None
         self.local_icon = local_icon
 
     def base_headers(self, title:str, click:str, x_attach:str) -> dict:
@@ -120,7 +121,7 @@ class BaseNotifier(ABC):
                     print(hdrs["Title"])
                     print(msg)
                 if self.notify_:
-                    return fn.notify(msg, hdrs, self.local_icon)
+                    return fn.notify(msg, hdrs, self.local_icon, type(self).__name__, self.data_poi["time_utc"].iloc[0])
                 return False
     
     @abstractmethod
