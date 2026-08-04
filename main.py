@@ -1,24 +1,26 @@
+import json
+import pandas as pd
 from datetime import datetime
-
-from classes import *
-from variables import *
-from functions import *
+import classes as c
+import variables as vb
+import functions as fn
 
 notifiers = {
-    "northern_lights": NorthernLightsNotifier(""),
-    "transit": TransitNotifier("transit"),
-    "sunspot": SunspotNotifier(""),
-    "comet": CometNotifier("comet"),
-    "eclipse": EclipseNotifier("eclipse")
+    "northern_lights": c.NorthernLightsNotifier(""),
+    "transit": c.TransitNotifier("transit"),
+    "sunspot": c.SunspotNotifier(""),
+    "comet": c.CometNotifier("comet"),
+    "eclipse": c.EclipseNotifier("eclipse"),
+    "deep_sky": c.DeepSkyNotifier("DSO")
 }
 
 weather_forecast = pd.DataFrame()
 current_month = datetime.now().month
 for notifier_type, notifier in notifiers.items():
-    month_min = datetime.strptime(notification_info[notifier_type][0][0], "%b").month
-    month_max = datetime.strptime(notification_info[notifier_type][0][1], "%b").month
+    month_min = datetime.strptime(vb.notification_info[notifier_type][0][0], "%b").month
+    month_max = datetime.strptime(vb.notification_info[notifier_type][0][1], "%b").month
     if month_min <= current_month <= month_max:
-        if notification_info[notifier_type][1]:
+        if vb.notification_info[notifier_type][1]:
             if weather_forecast.empty:
-                weather_forecast = weather()
+                weather_forecast = fn.weather()
             notifier.run(weather_forecast)
