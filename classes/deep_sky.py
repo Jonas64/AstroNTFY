@@ -185,7 +185,10 @@ class DeepSkyNotifier(BaseNotifier):
         self.ra_dec_to_alt_az()
         self.data = self.data[self.data["alt"] >= 25] # Exclude targets that are too close to horizon
 
-        self.data["visible"] = get_visibility_df(self.data["az"], self.data["alt"]) # Check visibility
+        if include_observation_horizon:
+            self.data["visible"] = get_visibility_df(self.data["az"], self.data["alt"]) # Check visibility
+        else: # If no horizon image is available, assume all targets are visible
+            self.data["visible"] = True
 
         self.data = self.data[self.data["visible"] != False] # Drop all object that are not visible
 
