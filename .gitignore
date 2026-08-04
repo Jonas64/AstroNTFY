@@ -8,12 +8,9 @@ de421.bsp
 hip_main.dat
 obs_horizon/*
 !obs_horizon/horizon_example.png
-icons/comet.png
-icons/transit.png
-icons/eclipse.png
-starmaps/comet.png
-starmaps/transit.png
-starmaps/eclipse.png
+icons/*
+starmaps/*
+!starmaps/.keep
 test_data
 testing
 movie.gif
@@ -22,3 +19,6 @@ log.json
 horizon.psd
 log.json
 app.py
+sh2.txt
+sky-survey_low_res.jpg
+sky-survey.jpg

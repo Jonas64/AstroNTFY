@@ -471,10 +471,10 @@ def check_log(event_type:str, event_time_utc:datetime) -> bool:
     else:
         for event in relevant_events: # Check if the event is close and it should notify a second time
             n_time_utc = event[1]
-            if int((n_time_utc-datetime.now(tz=ZoneInfo("UTC"))).days) == 3:
+            days_until_event = int((n_time_utc-datetime.now(tz=ZoneInfo("UTC"))).days)
+            if days_until_event == 3 or days_until_event == 1:
                 return True
     return False
-
 
 def notify(message:str, headers:dict, local_icon:str, notify_class:str, event_time_utc:datetime, tries:int=0, limit_tries:int=5) -> bool:
     """Sends the post request to send a notification"""

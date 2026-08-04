@@ -8,7 +8,7 @@ northern_lights_url = "https://www.nordlysvarsel.com/en/"
 northern_lights_img_url = "https://www.dropbox.com/scl/fi/vfdq084syxys7b6n9jhmq/northern_lights.jpg?rlkey=pmo8l094bzjv1vn5cm5z10rf9&st=76hp8qps&dl=1"
 
 class NorthernLightsNotifier(BaseNotifier):
-    def fetch_data(self):
+    def fetch_data(self) -> requests.Response | None:
         response = requests.get("https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json", timeout=30)
         return self.validate_response(response)
 
