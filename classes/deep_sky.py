@@ -97,7 +97,7 @@ class DeepSkyNotifier(BaseNotifier):
 
         astrometric_moon = observer.at(t).observe(moon)
         moon_alt, moon_az, distance = astrometric_moon.apparent().altaz()
-        moon_alt, moon_az = moon_alt.degrees, moon_alt.degrees
+        moon_alt, moon_az = moon_alt.degrees, moon_az.degrees
 
         moon_phase = percent_illuminated
     

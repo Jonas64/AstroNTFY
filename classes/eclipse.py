@@ -56,13 +56,13 @@ class EclipseNotifier(BaseNotifier):
                     "obscuration": None,
                     "magnitude": local_data["magnitude"],
 
-                    "begin_az": local_data["local_positions"]["at_start"]["alt"],
+                    "begin_alt": local_data["local_positions"]["at_start"]["alt"],
                     "begin_az": local_data["local_positions"]["at_start"]["az"],
 
                     "maximum_az": local_data["highest_position_in_sky"]["azimuth"],
                     "maximum_alt": local_data["highest_position_in_sky"]["altitude"],
 
-                    "end_az": local_data["local_positions"]["at_end"]["alt"],
+                    "end_alt": local_data["local_positions"]["at_end"]["alt"],
                     "end_az": local_data["local_positions"]["at_end"]["az"],
 
                     "visible": local_data["highest_position_in_sky"]["altitude"] > 0,

@@ -19,7 +19,11 @@ current_month = datetime.now().month
 for notifier_type, notifier in notifiers.items():
     month_min = datetime.strptime(vb.notification_info[notifier_type][0][0], "%b").month
     month_max = datetime.strptime(vb.notification_info[notifier_type][0][1], "%b").month
-    if month_min <= current_month <= month_max:
+    if month_min <= month_max:
+        in_season = month_min <= current_month <= month_max
+    else:
+        in_season = current_month >= month_min or current_month <= month_max
+    if in_season:
         if vb.notification_info[notifier_type][1]:
             if weather_forecast.empty:
                 weather_forecast = fn.weather()
