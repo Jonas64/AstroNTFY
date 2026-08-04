@@ -18,6 +18,15 @@ redirect_to_website = False         # Decides if you should be redirected to a r
 
 days_in_advance = 30                # How many days in advance of solar/lunar eclipses you will recieve notifications
 
+rig_config = {
+    "focal_length": 750,            # Focal length of you telescope/lens
+    "sensor_w": 19.1,               # Camera sensor width in mm
+    "sensor_h": 13,                 # Camera sensor height in mm
+    "filters": ["Ha", "OIII", "SII"]# Available narrowband filters ("Ha", "OIII", "SII")
+}
+bortle_scale = 7                    # Bortle of your location
+SQM = 18.59                         # SQM of you location
+
 # ((from month, to month), should this event notify you? (True/False))
 # E.g. ("Jan", "Dec") will notify you the whole year, ("Apr", "Sep") will notify you from april to september
 notification_info = {

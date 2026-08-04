@@ -5,12 +5,15 @@ import requests
 import numpy as np
 import math
 import json
+import astropy.units as u
 from skyfield.api import load, wgs84, Star
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from time import sleep
 from PIL import Image, ImageDraw, ImageFont
 from pathlib import Path
+from astropy.coordinates import SkyCoord
+
 
 import variables as vb
 import skymap_generation
@@ -119,6 +122,17 @@ def weather() -> pd.DataFrame:
 
     return weather_data
 
+def translate(value:float, leftMin:float, leftMax:float, rightMin:float, rightMax:float) -> float:
+    # Figure out how 'wide' each range is
+    leftSpan = leftMax - leftMin
+    rightSpan = rightMax - rightMin
+
+    # Convert the left range into a 0-1 range (float)
+    valueScaled = float(value - leftMin) / float(leftSpan)
+
+    # Convert the 0-1 range into a value in the right range.
+    return rightMin + (valueScaled * rightSpan)
+
 def to_datetime_utc(time:str) -> datetime:
     """Returns the datetime object of a string in UTC time"""
     return datetime.fromisoformat(time).replace(tzinfo=ZoneInfo("UTC"))
@@ -164,6 +178,89 @@ def generate_horizon_img(az:float, alt:float, name:str, time:datetime, lat:float
     flat_img = Image.fromarray(flat_np.astype(np.uint8))
     flat_img.save("icons/"+name+".png")
 
+def generate_telescope_view(ra: float, dec: float) -> None:
+    """
+    Extracts a flattened perspective view from an equirectangular galactic map
+    at the specified RA/Dec, and draws the camera/telescope field of view.
+    """
+    # 1. Load the original equirectangular Milky Way image
+    Image.MAX_IMAGE_PIXELS = (40000*20000)+1
+    try:
+        pano_img = Image.open("sky-survey.jpg").convert("RGB")
+    except FileNotFoundError:
+        print("Error: Could not find 'sky-survey.jpg'. Please ensure it is in the same directory.")
+        return
+        
+    pano_np = np.array(pano_img)
+
+    # 2. Convert RA/Dec to Galactic coordinates (l, b)
+    coord = SkyCoord(ra=ra*u.deg, dec=dec*u.deg, frame="icrs")
+    galactic = coord.galactic
+    
+    l = galactic.l.wrap_at(180 * u.deg).deg  # Range: -180 to +180 deg
+    b = galactic.b.deg                       # Range: -90 to +90 deg
+
+    fov_x_deg = vb.fov_rig_x / 60.0
+    fov_y_deg = vb.fov_rig_y / 60.0
+
+    # py360convert uses u_deg (horizontal) and v_deg (vertical).
+    # Since Galactic Longitude (l) increases to the left (East), 
+    # we negate 'l' so it maps correctly to the panorama's horizontal axis.
+    u_deg = -l
+    v_deg = b
+
+    # 3. Define extraction parameters
+    # We set the extracted background image to be twice the size of your largest FOV 
+    # dimension to provide visual context around your target.
+    extract_fov = max(max(fov_x_deg, fov_y_deg) * 2.2, 3.5)
+    
+    res = 512  # Output resolution for the extracted square image
+    
+    # 4. Extract flattened perspective image
+    flat_np = py360convert.e2p(
+        pano_np, 
+        fov_deg=extract_fov, 
+        u_deg=u_deg, 
+        v_deg=v_deg, 
+        out_hw=(res, res),
+        in_rot_deg=0
+    )
+    flat_img = Image.fromarray(flat_np.astype(np.uint8))
+
+    # 5. Draw the camera FOV rectangle
+    draw = ImageDraw.Draw(flat_img)
+    
+    # Calculate rectangle size in pixels based on the ratio to the extracted FOV
+    rect_w = res * (fov_x_deg / extract_fov)
+    rect_h = res * (fov_y_deg / extract_fov)
+    
+    # Determine top-left and bottom-right pixel coordinates for the rectangle
+    center_x, center_y = res / 2, res / 2
+    top_left = (center_x - rect_w / 2, center_y - rect_h / 2)
+    bottom_right = (center_x + rect_w / 2, center_y + rect_h / 2)
+    
+    # Draw a green outline for the camera FOV (thickness of 2 pixels)
+    draw.rectangle([top_left, bottom_right], outline=(0, 255, 0), width=2)
+
+    # 6. Save and finish
+    flat_img.save("icons/DSO.png")
+
+def galactic_ra_dec_to_pixel(target_coord, image_width, image_height):
+    ra, dec = target_coord
+    coord = SkyCoord(ra=ra*u.deg, dec=dec*u.deg, frame="icrs")
+
+    # Convert to Galactic coordinates (l, b)
+    galactic = coord.galactic
+    l = galactic.l.wrap_at(180 * u.deg).deg  # Range: -180 to +180 deg
+    b = galactic.b.deg                       # Range: -90 to +90 deg
+
+    # Map (l, b) to equirectangular pixel coordinates (X, Y)
+    # l increases to the left in sky view projections
+    x = image_width * (0.5 - (l / 360.0))
+    y = image_height * (0.5 - (b / 180.0))
+
+    return int(x), int(y)
+
 def get_visibility(az:float, alt:float) -> tuple:
     """
     Checks with the horizon 360 image if the inputted alt/az is blocked by obstacles or not
@@ -191,6 +288,33 @@ def get_visibility(az:float, alt:float) -> tuple:
             visible_from.insert(-1, " and ")
         visible_from_str = "".join(visible_from)
     return (any(image_alpha_samples.values()), visible_from_str, visible_from_final_list)
+
+def get_visibility_df(az: pd.Series, alt: pd.Series) -> pd.Series:
+    """
+    Vectorized version of get_visibility.
+    Returns a boolean Series aligned with az/alt: True if any horizon
+    image shows a clear view (alpha < 100) at that position.
+    """
+    x_px, y_px = degrees_to_pixels_df(az, alt)
+
+    visible = pd.Series(False, index=az.index)
+    for horizon_name, horizon_img in horizon_imgs.items():
+        arr = np.array(horizon_img.convert("RGBA"))  # shape (H, W, 4)
+        alpha = arr[y_px, x_px, 3]
+        visible |= (alpha < 100)
+    return visible
+
+def degrees_to_pixels_df(az: pd.Series, alt: pd.Series) -> tuple:
+    """Vectorized conversion of alt/az Series to pixel coordinate arrays"""
+    width, height = list(horizon_imgs.values())[0].size
+    az_mod = az % 360
+    x = (az_mod / 360 * width).astype(int).to_numpy()
+    y = ((90 - alt) / 180 * height).astype(int).to_numpy()
+    # clip so any object below the horizon (alt<0) or exactly at az=360
+    # doesn't index outside the image and throw
+    x = np.clip(x, 0, width - 1)
+    y = np.clip(y, 0, height - 1)
+    return x, y
 
 def draw_equirectangular_text(base_img, text, position, latitude_deg, font_) -> None:
     """Draws text on base_img that is stretched to not look distorted when base_img is flattened"""
