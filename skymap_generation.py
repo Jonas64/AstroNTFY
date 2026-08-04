@@ -5,8 +5,7 @@ from PIL import Image, ImageDraw, ImageFont
 from skyfield.api import load, wgs84, Star
 from skyfield.data import hipparcos
 import numpy as np
-import functions
-import variables
+import functions as fn
 
 font = ImageFont.truetype("Roboto-Regular.ttf", size=12)
 bigger_font = ImageFont.truetype("Roboto-Regular.ttf", size=16)
@@ -81,7 +80,7 @@ def generate_starmap(
     star_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
     draw_stars = ImageDraw.Draw(star_layer)
     
-    global_star_opacity = translate(sun_alt.degrees, -6, 2.5, 1, 0)
+    global_star_opacity = fn.translate(sun_alt.degrees, -6, 2.5, 1, 0)
     if global_star_opacity > 0:
         for a, az_val, mag, hip_id in zip(alt_deg, az_deg, magnitudes, hip_ids):
             x, y = degrees_to_pixels_generic(az_val, a, width, height)
@@ -98,7 +97,7 @@ def generate_starmap(
             # Only label bright, named stars to avoid clutter
             if mag <= label_mag_limit and hip_id in STAR_NAMES:
                 name = STAR_NAMES[hip_id]
-                functions.draw_equirectangular_text(star_layer, name, (x + radius + int(len(name)*5.8), y - 3), a, font)
+                fn.draw_equirectangular_text(star_layer, name, (x + radius + int(len(name)*5.8), y - 3), a, font)
     
     img = Image.alpha_composite(img, star_layer)
     draw = ImageDraw.Draw(img, "RGBA")
@@ -113,25 +112,14 @@ def generate_starmap(
         [sun_x - sun_x_radius, (sun_y - sun_radius), (sun_x + sun_x_radius), sun_y + sun_radius],
         fill=(255, 209, 26),
     )
-    functions.draw_equirectangular_text(img, "Sun", (sun_x, sun_y-25), sun_alt.degrees, bigger_font)
+    fn.draw_equirectangular_text(img, "Sun", (sun_x, sun_y-25), sun_alt.degrees, bigger_font)
     draw.ellipse(
         [moon_x - moon_x_radius, (moon_y - moon_radius), (moon_x + moon_x_radius), moon_y + moon_radius],
         fill=(140, 140, 140),
     )
-    functions.draw_equirectangular_text(img, "Moon", (moon_x+50, moon_y-3), moon_alt.degrees, bigger_font)
+    fn.draw_equirectangular_text(img, "Moon", (moon_x+50, moon_y-3), moon_alt.degrees, bigger_font)
 
     img.save(f"starmaps/{event_name}.png")
-
-def translate(value:float, leftMin:float, leftMax:float, rightMin:float, rightMax:float) -> float:
-    # Figure out how 'wide' each range is
-    leftSpan = leftMax - leftMin
-    rightSpan = rightMax - rightMin
-
-    # Convert the left range into a 0-1 range (float)
-    valueScaled = float(value - leftMin) / float(leftSpan)
-
-    # Convert the 0-1 range into a value in the right range.
-    return rightMin + (valueScaled * rightSpan)
 
 def generate_sky_hdri(
     width: int,
