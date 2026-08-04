@@ -41,16 +41,16 @@ Currently, you need to run the [main.py](main.py) file to check for all events a
 
 # Optional
 ## Deep sky notificaitons
-The deep sky notifier calculates what targets are good candidates for astrophotography tonight based on target
+The deep sky notifier calculates what targets are good candidates for astrophotography tonight based on
 
-Based on target altitude, magnitude, surface brightness (uses SQM to decide if target is visible from location), moon position, narrowband suitability (if relevant based on what filters the user has, also scaled by bortle scale) and framing based on rig_config in variables.
-
-1. Altitude
-2. Magnitude
-3. Surface brightness
+1. Target altitude
+2. Target magnitude
+3. Target surface brightness
 4. Narrowband suitability (if you have any filters in your [rig_config](variables_example.py))
 5. Moon position
 6. Framing based on [rig_config](variables_example.py) (focal length, sensor size)
+
+If you are using horizon images as well, the program will only give you targets that are visible from at least one of the observation points. 
 
 Here is an example of an image you might recieve
 
