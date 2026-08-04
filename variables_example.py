@@ -11,7 +11,7 @@ comet_mag_treshold = 7              # Any comet with a magnitude lower than this
 
 include_observation_horizon = False # Leave this False if you will not be adding your own horizon.png image, else change to True
 horizon_north_offset = {            # How many degrees offset is your image(s) from true north (-360 to +360)
-    "horizon_example": 0
+    "horizon_example": 0            # Make sure the name is the exact same as the horizon image
 }
 
 redirect_to_website = False         # Decides if you should be redirected to a relevant website when clicking a notification (True/False)

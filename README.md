@@ -8,10 +8,11 @@ The current version has implemented notifications for:
 3. Many/big sunspots
 4. Comets
 5. Lunar/solar eclipses
+6. Good candidates for deep space astrophotography every clear day (entire NGC and IC catalogs)
 
 Every notification also includes the closest available weather forecast (cloud coverage and wind speed) to the relevant date and time.
 
-You can also include a sentence in the relevant notifications about whether or not any obstacles at your observation point will block the event as well as an image of your sky and where the transit or comet will be. More info on how this is done and what the result looks like [below](#Observation-point-horizon).
+You can also include a sentence in the relevant notifications about whether or not any obstacles at your observation point will block the event as well as an image of your sky showing where the transit, comet or eclipse will be. More info on how this is done and what the result looks like [below](#Observation-point-horizon).
 
 # Minimal setup
 
@@ -36,7 +37,7 @@ Currently, you need to run the [main.py](main.py) file to check for all events a
 # Optional
 
 ## Observation point horizon
-To be sure that the event (for example an ISS lunar transit) is visible from your observation point, you can add your own 360 degree equirectangular image. I have added an [example image](obs_horizon/horizon_example.png) in the obs_horizon folder:
+To be sure that the event (for example an ISS lunar transit) is visible from your observation point, you can add your own 360 degree equirectangular image. You can have multiple horizon images in this folder, just keep in mind they are all using the same location (latitude, longitude). I have added an [example image](obs_horizon/horizon_example.png) in the obs_horizon folder:
 
 ![Horizon example](obs_horizon/horizon_example.png)
 
@@ -58,6 +59,8 @@ Find the real azimuth for the landmark by standing exactly where you took the ph
 
 Now subtract the two and you're left with the horizon_north_offset variable that you set in [variables_example.py](variables_example.py).
 
-This is an example of an image you might receive with a notification showing where the comet will be in your sky.
+There are many ways to do this of course. This is only a suggestion.
+
+Here is an example image you might receive with a notification showing where a comet will be in your sky.
 
 ![Notification example](readme_imgs/comet_notification_example.png)
