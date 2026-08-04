@@ -34,7 +34,8 @@ notification_info = {
     "transit":          (("Jan", "Dec"), True),
     "sunspot":          (("Jan", "Dec"), True),
     "comet":            (("Jan", "Dec"), True),
-    "eclipse":          (("Jan", "Dec"), True)
+    "eclipse":          (("Jan", "Dec"), True),
+    "deep_sky":         (("Nov", "Feb"), False)
 }
 
 """ Prints all available timezones
@@ -44,5 +45,12 @@ for t in timezones:
     print(t)
 """
 
+# Dont change
 from zoneinfo import ZoneInfo
 localtime = ZoneInfo(local_timezone)
+
+from pathlib import Path
+path_horizon_imgs = Path(__file__).parent / "obs_horizon"
+
+fov_rig_x = (rig_config["sensor_w"] / rig_config["focal_length"]) * 3437.75 # FOV x,y in arcminutes
+fov_rig_y = (rig_config["sensor_h"] / rig_config["focal_length"]) * 3437.75
