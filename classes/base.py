@@ -64,7 +64,9 @@ class BaseNotifier(ABC):
         working_weather_df["delta_time"] = working_weather_df["time_utc"].apply(lambda t: t-target_time_utc)
         working_weather_df["delta_time"] = working_weather_df["delta_time"].apply(lambda t: abs(t))
         working_weather_df = working_weather_df.sort_values(by="delta_time", key=abs)
-        
+
+        if type(self).__name__ == "DeepSkyNotifier":
+            self.data_poi["closest_weather"] = working_weather_df.head(1)
         return working_weather_df.head(1)
 
     def append_weather(self, msg:str, weather_forecast:pd.DataFrame) -> str:
@@ -104,8 +106,11 @@ class BaseNotifier(ABC):
             
             # Save transit data
             #self.data.to_csv(transit_file_path)
-            if self.is_notable():
+            if type(self).__name__ == "DeepSkyNotifier":
                 weather_forecast = self.closest_weather_forecast()
+            if self.is_notable():
+                if type(self).__name__ != "DeepSkyNotifier":
+                    weather_forecast = self.closest_weather_forecast()
                 msg = self.message()
                 msg = self.append_weather(msg, weather_forecast)
                 hdrs = self.headers()
@@ -121,7 +126,11 @@ class BaseNotifier(ABC):
                     print(hdrs["Title"])
                     print(msg)
                 if self.notify_:
-                    return fn.notify(msg, hdrs, self.local_icon, type(self).__name__, self.data_poi["time_utc"].iloc[0])
+                    try:
+                        time_utc = self.data_poi["time_utc"].iloc[0]
+                    except:
+                        time_utc = self.data_poi["time_utc"]
+                    return fn.notify(msg, hdrs, self.local_icon, type(self).__name__, time_utc)
                 return False
     
     @abstractmethod
