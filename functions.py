@@ -14,7 +14,6 @@ from PIL import Image, ImageDraw, ImageFont
 from pathlib import Path
 from astropy.coordinates import SkyCoord
 
-
 import variables as vb
 import skymap_generation
 
@@ -158,7 +157,7 @@ def generate_horizon_img(az:float, alt:float, name:str, time:datetime, lat:float
     if name == "comet":
         txt = "Comet"
         offset_x = 25
-    elif name == "ISS":
+    elif name == "transit":
         txt = "ISS"
         offset_x = 35
     if name != "eclipse":

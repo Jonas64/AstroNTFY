@@ -1,9 +1,13 @@
-import json
 import pandas as pd
 from datetime import datetime
 import classes as c
 import variables as vb
 import functions as fn
+
+from pathlib import Path
+
+icon_dir = Path("icons")
+icon_dir.mkdir(exist_ok=True)
 
 notifiers = {
     "northern_lights": c.NorthernLightsNotifier(""),
