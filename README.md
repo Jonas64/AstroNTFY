@@ -30,6 +30,7 @@ In order for you to receive notifications, you will need the [ntfy.sh](https://n
 Create a new topic in the app with a cryptic name that people won't guess. I used a password generator.
 
 ## Final setup
+Finally, run [app.py](app.py) to easily input the required variables. 
 Finally, fill in the variables (latitude/longitude, elevation, ntfy topic, timezone) in [variables_example.py](variables_example.py) and rename it to variables.py.
 
 If you just want to use the program without downloading anything, keep the deep_sky False in notification_info. More on this [below](#download-sky-survey)
