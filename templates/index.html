@@ -681,6 +681,8 @@
     </div>
     <div id="notif-rows"></div>
 
+    <button class="btn btn-ghost" onclick="autoFillMonths() ">Auto-fill months for astronomical darkness</button>
+
     <div id="sky-survey-panel" style="display: none; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
       <p class="divider-label">Sky survey reference image</p>
       <p class="field-hint" style="margin-bottom: 1rem;">Deep-sky notifications use an all-sky reference photo for framing. Pick a quality and download it straight into this folder as <code style="font-family:var(--font-mono); color:var(--foreground);">sky-survey.jpg</code>.</p>
@@ -853,6 +855,18 @@
 </div>
 
 <script>
+// ---------- Autofill months (astronomical darkness) ----------
+async function autoFillMonths() {
+  const response = await fetch('/calculate_months');
+  const data = await response.json();
+  document.getElementById('notif-from-northern_lights').value = data.months[0];
+  document.getElementById('notif-from-comet').value = data.months[0];
+  document.getElementById('notif-from-deep_sky').value = data.months[0];
+
+  document.getElementById('notif-to-northern_lights').value = data.months[1];
+  document.getElementById('notif-to-comet').value = data.months[1];
+  document.getElementById('notif-to-deep_sky').value = data.months[1];
+}
 (function () {
   const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
@@ -1130,7 +1144,7 @@
 
     let horizonDictBody;
     if (horizonRows.length === 0) {
-      horizonDictBody = `    "horizon_example": 0            # Make sure the name is the exact same as the horizon image`;
+      horizonDictBody = ``;//`    "horizon_example": 0            # Make sure the name is the exact same as the horizon image`;
     } else {
       horizonDictBody = horizonRows.map((r, i) =>
         `    ${pyStr(r.name)}: ${r.offset}${i < horizonRows.length - 1 ? "," : ""}`
