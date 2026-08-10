@@ -1,0 +1,1345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>astroNTFY — Configuration Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --background: #0A0A0F;
+    --background-alt: #12121A;
+    --foreground: #FAFAFA;
+    --muted: #1A1A24;
+    --muted-foreground: #71717A;
+    --accent: #F59E0B;
+    --accent-foreground: #0A0A0F;
+    --accent-muted: rgba(245, 158, 11, 0.15);
+    --border: rgba(255, 255, 255, 0.08);
+    --border-hover: rgba(255, 255, 255, 0.15);
+    --card: rgba(26, 26, 36, 0.6);
+    --card-solid: #1A1A24;
+    --ring: #F59E0B;
+
+    --font-display: "Space Grotesk", system-ui, sans-serif;
+    --font-body: "Inter", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", monospace;
+
+    --radius-sm: 0.375rem;
+    --radius-md: 0.5rem;
+    --radius-lg: 0.75rem;
+    --radius-xl: 1rem;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  /* Ambient background */
+  body::before {
+    content: "";
+    position: fixed;
+    top: -10%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 900px;
+    height: 600px;
+    background: radial-gradient(ellipse at center, rgba(245, 158, 11, 0.07) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  body::after {
+    content: "";
+    position: fixed;
+    bottom: -20%;
+    right: -10%;
+    width: 700px;
+    height: 700px;
+    background: radial-gradient(circle, rgba(245, 158, 11, 0.04) 0%, transparent 65%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .noise {
+    position: fixed;
+    inset: 0;
+    opacity: 0.4;
+    pointer-events: none;
+    z-index: 0;
+    background-image: radial-gradient(rgba(255,255,255,0.035) 1px, transparent 1px);
+    background-size: 3px 3px;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 72rem;
+    margin: 0 auto;
+    padding: 4rem 1.5rem 8rem;
+  }
+
+  @media (min-width: 768px) {
+    .container { padding: 5rem 2rem 8rem; }
+  }
+
+  /* Header */
+  header {
+    margin-bottom: 3.5rem;
+  }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: var(--accent-muted);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    border-radius: 9999px;
+    padding: 0.35rem 0.85rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .eyebrow .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px 2px rgba(245, 158, 11, 0.6);
+    animation: pulse 2.2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
+
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 2.5rem;
+    letter-spacing: -0.025em;
+    margin: 0 0 0.75rem;
+  }
+
+  @media (min-width: 768px) {
+    h1 { font-size: 3rem; }
+  }
+
+  a:link, a:visited {
+    color: var(--accent);
+    background-color: transparent;
+    text-decoration: none;
+  }
+
+  header p.lead {
+    color: var(--muted-foreground);
+    font-size: 1.0625rem;
+    max-width: 42rem;
+    margin: 0;
+  }
+
+  header p.lead code {
+    font-family: var(--font-mono);
+    color: var(--foreground);
+    background: var(--muted);
+    padding: 0.1em 0.4em;
+    border-radius: var(--radius-sm);
+    font-size: 0.9em;
+  }
+
+  /* Sections / cards */
+  .card {
+    background: var(--card-solid);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 2rem;
+    margin-bottom: 1.75rem;
+    transition: border-color 300ms ease-out;
+  }
+
+  .card.required {
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.1), 0 0 40px rgba(245, 158, 11, 0.06);
+  }
+
+  .card-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.9rem;
+    margin-bottom: 1.75rem;
+  }
+
+  .card-icon {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-md);
+    background: var(--muted);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent);
+  }
+
+  .card.required .card-icon {
+    background: var(--accent-muted);
+    border-color: rgba(245, 158, 11, 0.25);
+  }
+
+  .card-icon svg { width: 18px; height: 18px; }
+
+  .card-title-wrap h2 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.25rem;
+    letter-spacing: -0.01em;
+    margin: 0 0 0.25rem;
+  }
+
+  .card-title-wrap p {
+    color: var(--muted-foreground);
+    font-size: 0.9rem;
+    margin: 0;
+  }
+
+  .required-pill {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: var(--accent-muted);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    border-radius: 9999px;
+    padding: 0.2rem 0.6rem;
+    margin-left: auto;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  /* Form grid */
+  .field-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.25rem;
+  }
+
+  @media (max-width: 640px) {
+    .field-grid { grid-template-columns: 1fr; }
+  }
+
+  .field { display: flex; flex-direction: column; gap: 0.4rem; }
+  .field.span-2 { grid-column: 1 / -1; }
+
+  label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--foreground);
+  }
+
+  label .req-star { color: var(--accent); margin-left: 2px; }
+
+  .field-hint {
+    font-size: 0.78rem;
+    color: var(--muted-foreground);
+    margin-top: -0.15rem;
+  }
+
+  input[type="text"],
+  input[type="number"],
+  select,
+  textarea {
+    background: #1E1E2A;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--foreground);
+    font-family: var(--font-body);
+    font-size: 0.9375rem;
+    height: 2.75rem;
+    padding: 0 0.9rem;
+    width: 100%;
+    transition: all 200ms ease-out;
+  }
+
+  textarea { height: auto; padding: 0.7rem 0.9rem; resize: vertical; font-family: var(--font-mono); }
+
+  input::placeholder { color: var(--muted-foreground); }
+
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: rgba(245, 158, 11, 0.5);
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2), 0 0 20px rgba(245, 158, 11, 0.1);
+  }
+
+  input:disabled, select:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%2371717A' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.9rem center;
+    padding-right: 2.2rem;
+  }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-family: var(--font-body);
+    font-weight: 500;
+    font-size: 0.9rem;
+    height: 2.75rem;
+    padding: 0 1.4rem;
+    border-radius: var(--radius-md);
+    border: none;
+    cursor: pointer;
+    transition: all 200ms ease-out;
+    white-space: nowrap;
+  }
+
+  .btn:active { transform: scale(0.98); }
+
+  .btn-primary {
+    background: var(--accent);
+    color: var(--accent-foreground);
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    filter: brightness(1.1);
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  .btn-outline {
+    background: transparent;
+    color: var(--foreground);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+  }
+
+  .btn-outline:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.25); }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted-foreground);
+    border: none;
+    height: auto;
+    padding: 0.3rem 0.6rem;
+    font-size: 0.82rem;
+  }
+  .btn-ghost:hover { background: rgba(255,255,255,0.05); color: var(--foreground); }
+
+  .btn svg { width: 16px; height: 16px; }
+
+  .btn.is-loading svg { animation: spin 0.8s linear infinite; }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+  .location-row { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.5rem; }
+
+  .status-text {
+    font-size: 0.8rem;
+    font-family: var(--font-mono);
+    color: var(--muted-foreground);
+    min-height: 1.2em;
+  }
+  .status-text.ok { color: #6EE7B7; }
+  .status-text.err { color: #FCA5A5; }
+
+  /* Toggle switch */
+  .switch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.9rem 0;
+  }
+
+  .switch-row + .switch-row { border-top: 1px solid var(--border); }
+
+  .switch-label { display: flex; flex-direction: column; gap: 0.15rem; }
+  .switch-label span.title { font-size: 0.9rem; font-weight: 500; }
+  .switch-label span.desc { font-size: 0.78rem; color: var(--muted-foreground); }
+
+  .switch {
+    position: relative;
+    width: 42px;
+    height: 24px;
+    flex-shrink: 0;
+  }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch .track {
+    position: absolute;
+    inset: 0;
+    background: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 9999px;
+    cursor: pointer;
+    transition: all 200ms ease-out;
+  }
+  .switch .track::before {
+    content: "";
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    left: 3px;
+    top: 3px;
+    background: var(--muted-foreground);
+    border-radius: 50%;
+    transition: all 200ms ease-out;
+  }
+  .switch input:checked + .track {
+    background: rgba(245, 158, 11, 0.25);
+    border-color: rgba(245, 158, 11, 0.4);
+  }
+  .switch input:checked + .track::before {
+    transform: translateX(18px);
+    background: var(--accent);
+    box-shadow: 0 0 8px rgba(245, 158, 11, 0.6);
+  }
+  .switch input:focus-visible + .track {
+    box-shadow: 0 0 0 2px var(--ring), 0 0 0 4px var(--background);
+  }
+
+  /* Notification schedule rows */
+  .notif-row {
+    display: grid;
+    grid-template-columns: 1.3fr 0.85fr 0.85fr auto;
+    gap: 0.9rem;
+    align-items: center;
+    padding: 0.85rem 0;
+  }
+  .notif-row + .notif-row { border-top: 1px solid var(--border); }
+  .notif-row .name { display: flex; flex-direction: column; gap: 0.15rem; }
+  .notif-row .name span.title { font-size: 0.9rem; font-weight: 500; }
+  .notif-row .name span.key { font-family: var(--font-mono); font-size: 0.72rem; color: var(--muted-foreground); }
+  .notif-row select { height: 2.4rem; font-size: 0.85rem; }
+
+  .notif-head {
+    display: grid;
+    grid-template-columns: 1.3fr 0.85fr 0.85fr auto;
+    gap: 0.9rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .notif-head span {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+
+  @media (max-width: 640px) {
+    .notif-row, .notif-head { grid-template-columns: 1fr; gap: 0.4rem; }
+    .notif-head { display: none; }
+    .notif-row { padding: 1rem 0; }
+  }
+
+  /* Filter pills */
+  .pill-group { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+  .pill-check { position: relative; }
+  .pill-check input { position: absolute; opacity: 0; }
+  .pill-check label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    border-radius: 9999px;
+    border: 1px solid var(--border);
+    background: var(--muted);
+    color: var(--muted-foreground);
+    cursor: pointer;
+    transition: all 200ms ease-out;
+  }
+  .pill-check input:checked + label {
+    border-color: rgba(245, 158, 11, 0.4);
+    background: var(--accent-muted);
+    color: var(--accent);
+  }
+  .pill-check input:focus-visible + label {
+    box-shadow: 0 0 0 2px var(--ring), 0 0 0 4px var(--background);
+  }
+
+  /* Horizon offset rows */
+  .horizon-row {
+    display: grid;
+    grid-template-columns: 1fr 140px 40px;
+    gap: 0.75rem;
+    align-items: center;
+    margin-bottom: 0.75rem;
+  }
+  .horizon-row input { height: 2.5rem; }
+  .icon-btn {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted-foreground);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 200ms ease-out;
+    flex-shrink: 0;
+  }
+  .icon-btn:hover { border-color: rgba(255,255,255,0.25); color: var(--foreground); background: rgba(255,255,255,0.05); }
+  .icon-btn svg { width: 15px; height: 15px; }
+
+  fieldset { border: none; padding: 0; margin: 0; }
+  fieldset[disabled] { opacity: 0.4; }
+
+  /* Preview */
+  #preview-wrap { display: none; }
+  #preview-wrap.open { display: block; }
+  pre#preview {
+    background: var(--card-solid);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 1.25rem;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    line-height: 1.6;
+    color: #D4D4D8;
+    overflow-x: auto;
+    max-height: 420px;
+    overflow-y: auto;
+    white-space: pre;
+  }
+
+  /* Sticky footer bar */
+  .footer-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 20;
+    background: #0D0D13;
+    border-top: 1px solid var(--border);
+    padding: 1.1rem 1.5rem;
+  }
+  .footer-inner {
+    max-width: 72rem;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .footer-msg { font-size: 0.82rem; color: var(--muted-foreground); font-family: var(--font-mono); }
+  .footer-msg.err { color: #FCA5A5; }
+  .footer-msg.ok { color: #6EE7B7; }
+  .footer-actions { display: flex; gap: 0.75rem; align-items: center; }
+
+  section { scroll-margin-top: 2rem; }
+
+  .divider-label {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--muted-foreground);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0 0 0.9rem;
+  }
+</style>
+</head>
+<body>
+<div class="noise"></div>
+<div class="container">
+
+  <header>
+    <div class="eyebrow"><span class="dot"></span><a href="https://github.com/Jonas64/AstroNTFY" target="_blank" rel="noopener noreferrer">astroNTFY</a></div>
+    <h1>Configuration Generator</h1>
+    <p class="lead">Fill in your observing setup below, then save it directly into <code>variables.py</code></p>
+  </header>
+
+  <!-- REQUIRED -->
+  <section class="card required" id="section-required">
+    <div class="card-head">
+      <div class="card-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 L12 6 M12 18 L12 22 M2 12 L6 12 M18 12 L22 12"/><circle cx="12" cy="12" r="5"/></svg>
+      </div>
+      <div class="card-title-wrap">
+        <h2>Topic &amp; location</h2>
+        <p>Required for the program to run — nothing else works without these.</p>
+      </div>
+      <span class="required-pill">Required</span>
+    </div>
+
+    <div class="field-grid">
+      <div class="field span-2">
+        <label for="topic">Topic <span class="req-star">*</span></label>
+        <input type="text" id="topic" placeholder="e.g. xxxx-xxxx-xxxx-xxxx">
+        <p class="field-hint">The ntfy.sh topic you'll subscribe to for notifications.</p>
+      </div>
+
+      <div class="field">
+        <label for="latitude">Latitude <span class="req-star">*</span></label>
+        <input type="number" step="any" id="latitude" placeholder="00.0000">
+      </div>
+
+      <div class="field">
+        <label for="longitude">Longitude <span class="req-star">*</span></label>
+        <input type="number" step="any" id="longitude" placeholder="00.0000">
+      </div>
+
+      <div class="field">
+        <label for="elevation">Elevation (MASL) <span class="req-star">*</span></label>
+        <input type="number" step="any" id="elevation" placeholder="0">
+      </div>
+
+      <div class="field">
+        <label for="timezone">Local timezone <span class="req-star">*</span></label>
+        <select id="timezone"><option value="">Select a timezone…</option></select>
+      </div>
+
+      <div class="field span-2">
+        <div class="location-row">
+          <button type="button" class="btn btn-outline" id="btn-geo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-7.58 8-13a8 8 0 1 0-16 0c0 5.42 8 13 8 13Z"/><circle cx="12" cy="9" r="2.5"/></svg>
+            Use my current location
+          </button>
+        </div>
+        <p class="status-text" id="geo-status"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- THRESHOLDS -->
+  <section class="card" id="section-thresholds">
+    <div class="card-head">
+      <div class="card-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 5-6"/></svg>
+      </div>
+      <div class="card-title-wrap">
+        <h2>Notification thresholds</h2>
+        <p>How intense an event has to be before you're notified.</p>
+      </div>
+    </div>
+
+    <div class="field-grid">
+      <div class="field">
+        <label for="kp">Kp threshold</label>
+        <input type="number" step="1" id="kp" value="6">
+        <p class="field-hint">Notify when the planetary Kp index exceeds this.</p>
+      </div>
+      <div class="field">
+        <label for="sunspot-area">Sunspot area threshold</label>
+        <input type="number" step="1" id="sunspot-area" value="1500">
+        <p class="field-hint">Total sunspot area in millionths of a hemisphere (MH).</p>
+      </div>
+      <div class="field">
+        <label for="comet-mag">Comet magnitude threshold</label>
+        <input type="number" step="0.1" id="comet-mag" value="7">
+        <p class="field-hint">Notify for comets brighter than this magnitude.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- NOTIFICATION INFO -->
+  <section class="card" id="section-notifications">
+    <div class="card-head">
+      <div class="card-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      </div>
+      <div class="card-title-wrap">
+        <h2>Notification schedule</h2>
+        <p>Set the months it's active in and turn each event type on or off completely.</p>
+      </div>
+    </div>
+
+    <div class="notif-head">
+      <span>Event</span><span>From</span><span>To</span><span>On</span>
+    </div>
+    <div id="notif-rows"></div>
+
+    <button type="button" class="btn btn-outline" onclick="autoFillMonths() ">Auto-fill months for astronomical darkness</button>
+
+    <div id="sky-survey-panel" style="display: none; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
+      <p class="divider-label">Sky survey reference image</p>
+      <p class="field-hint" style="margin-bottom: 1rem;">Deep-sky notifications use an all-sky reference photo for framing. Pick a quality and download it straight into this folder as <code style="font-family:var(--font-mono); color:var(--foreground);">sky-survey.jpg</code>.</p>
+
+      <div class="pill-group" style="margin-bottom: 1rem;" role="radiogroup" aria-label="Sky survey image quality">
+        <div class="pill-check">
+          <input type="radio" name="sky-survey-quality" id="quality-large" value="large">
+          <label for="quality-large">Large JPEG · 40 000px (~200 MB)</label>
+        </div>
+        <div class="pill-check">
+          <input type="radio" name="sky-survey-quality" id="quality-publication" value="publication" checked>
+          <label for="quality-publication">Publication JPEG · 4000px (~3.5 MB)</label>
+        </div>
+      </div>
+
+      <div class="location-row">
+        <button type="button" class="btn btn-outline" id="btn-download-sky">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+          Download to AstroNTFY folder
+        </button>
+      </div>
+      <p class="status-text" id="sky-survey-status"></p>
+
+      <!-- RIG / SITE -->
+      <p class="divider-label">Rig config</p>
+      <p class="field-hint" style="margin-bottom: 1rem;">Deep-sky notifications require some info about your rig and sky conditions. </p>
+
+      <div class="card-head">
+        <div class="card-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="12" rx="2"/><circle cx="12" cy="13" r="3"/><path d="M8 7 9.5 4h5L16 7"/></svg>
+        </div>
+        <div class="card-title-wrap">
+          <h2>Rig &amp; site conditions</h2>
+          <p>Your imaging setup and how dark your sky is.</p>
+        </div>
+      </div>
+      
+      <div class="field-grid" style="margin-bottom: 1.75rem;">
+        <div class="field">
+          <label for="focal-length">Focal length (mm)</label>
+          <input type="number" step="1" id="focal-length" placeholder="750">
+        </div>
+        <div class="field"></div>
+        <div class="field">
+          <label for="sensor-w">Sensor width (mm)</label>
+          <input type="number" step="0.01" id="sensor-w" placeholder="19.1">
+        </div>
+        <div class="field">
+          <label for="sensor-h">Sensor height (mm)</label>
+          <input type="number" step="0.01" id="sensor-h" placeholder="13">
+        </div>
+        <div class="field span-2">
+          <div class="switch-label">
+            <span class="title">Available narrowband filters</span>
+            <span class="desc">If you have duo-band filters, for example Ha+OIII, check both Ha and OIII.</span>
+          </div>
+          <div class="pill-group">
+            <div class="pill-check">
+              <input type="checkbox" id="filter-ha">
+              <label for="filter-ha">Ha</label>
+            </div>
+            <div class="pill-check">
+              <input type="checkbox" id="filter-oiii">
+              <label for="filter-oiii">OIII</label>
+            </div>
+            <div class="pill-check">
+              <input type="checkbox" id="filter-sii">
+              <label for="filter-sii">SII</label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p class="divider-label">Sky darkness (check <a href="https://www.lightpollutionmap.info/" target="_blank" rel="noopener noreferrer">lightpollutionmap.info</a>)</p>
+      <div class="field-grid">
+        <div class="field">
+          <label for="bortle">Bortle scale</label>
+          <input type="number" step="1" min="1" max="9" id="bortle" placeholder="8">
+          <p class="field-hint">1 (excellent dark sky) to 9 (inner city).</p>
+        </div>
+        <div class="field">
+          <label for="sqm">SQM</label>
+          <input type="number" step="0.01" id="sqm" placeholder="18.2">
+          <p class="field-hint">Sky Quality Meter reading, mag/arcsec².</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- THE REST -->
+  <section class="card" id="section-other">
+    <div class="card-head">
+      <div class="card-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+      </div>
+      <div class="card-title-wrap">
+        <h2>Other settings</h2>
+        <p>Everything else — sensible defaults are already filled in.</p>
+      </div>
+    </div>
+
+    <div class="switch-row">
+      <div class="switch-label">
+        <span class="title">Redirect to website on tap</span>
+        <span class="desc">Opens a relevant website when you tap a notification.</span>
+      </div>
+      <div class="switch">
+        <input type="checkbox" id="redirect-website">
+        <label class="track" for="redirect-website"></label>
+      </div>
+    </div>
+
+    <div class="field" style="max-width: 220px; padding: 0.9rem 0; border-top: 1px solid var(--border);">
+      <label for="days-advance">Days in advance</label>
+      <input type="number" step="1" id="days-advance" value="30">
+      <p class="field-hint">Notice period before solar/lunar eclipses.</p>
+    </div>
+
+    <div class="switch-row" style="border-top: 1px solid var(--border);">
+      <div class="switch-label">
+        <span class="title">Use my own observation horizon</span>
+        <span class="desc">Enable if you're adding your own horizon.png image(s).</span>
+      </div>
+      <div class="switch">
+        <input type="checkbox" id="include-horizon">
+        <label class="track" for="include-horizon"></label>
+      </div>
+    </div>
+
+    <fieldset id="horizon-fieldset" disabled style="padding-top: 0.9rem;">
+      <p class="field-hint" style="margin-bottom: 0.75rem;">
+        One row per horizon image, the name must match the image filename exactly, the offset is how many degrees it's rotated from true north.
+      </p>
+      <div id="horizon-rows"></div>
+
+      <!-- Button to both upload and add a row -->
+      <button type="button" class="btn btn-outline" id="btn-add-horizon">
+        + Add horizon image
+      </button>
+
+      <!-- Hidden file input -->
+      <input type="file" id="fileInput" name="file" accept="image/*" required style="display: none;">
+    </fieldset>
+  </section>
+
+  <!-- PREVIEW -->
+  <section class="card" id="section-preview">
+    <div class="card-head">
+      <div class="card-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+      </div>
+      <div class="card-title-wrap">
+        <h2>Preview</h2>
+        <p>What your <code style="font-family:var(--font-mono); color:var(--foreground);">variables.py</code> will contain.</p>
+      </div>
+      <button type="button" class="btn btn-outline" id="btn-toggle-preview" style="margin-left: 1rem;">Show preview</button>
+    </div>
+    <div id="preview-wrap"><pre id="preview"></pre></div>
+  </section>
+
+</div>
+
+<div class="footer-bar">
+  <div class="footer-inner">
+    <span class="footer-msg" id="footer-msg">Fill in topic, latitude, longitude, elevation and timezone to enable saving.</span>
+    <div class="footer-actions">
+      <button type="button" class="btn btn-primary" id="btn-save" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>
+        Save to variables.py
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---------- Autofill months (astronomical darkness) ----------
+async function autoFillMonths() {
+  const response = await fetch('/calculate_months');
+  const data = await response.json();
+  document.getElementById('notif-from-northern_lights').value = data.months[0];
+  document.getElementById('notif-from-comet').value = data.months[0];
+  document.getElementById('notif-from-deep_sky').value = data.months[0];
+
+  document.getElementById('notif-to-northern_lights').value = data.months[1];
+  document.getElementById('notif-to-comet').value = data.months[1];
+  document.getElementById('notif-to-deep_sky').value = data.months[1];
+}
+(function () {
+  const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  const NOTIF_DEFAULTS = [
+    { key: "northern_lights", title: "Northern lights", from: "Jan", to: "Dec", on: true },
+    { key: "transit",         title: "ISS transit", from: "Jan", to: "Dec", on: true },
+    { key: "sunspot",         title: "Sunspot activity", from: "Jan", to: "Dec", on: true },
+    { key: "comet",           title: "Comet visibility", from: "Jan", to: "Dec", on: true },
+    { key: "eclipse",         title: "Solar / lunar eclipse", from: "Jan", to: "Dec", on: true },
+    { key: "deep_sky",        title: "Deep sky object", from: "Nov", to: "Feb", on: false },
+  ];
+
+  // ---------- Timezone select ----------
+  const tzSelect = document.getElementById("timezone");
+  let tzList = [];
+  try {
+    if (typeof Intl.supportedValuesOf === "function") {
+      tzList = Intl.supportedValuesOf("timeZone");
+    }
+  } catch (e) { /* fall through to fallback list */ }
+  if (!tzList.length) {
+    tzList = ["UTC","Europe/Oslo","Europe/Berlin","Europe/London","Europe/Paris","Europe/Madrid","Europe/Rome",
+      "Europe/Stockholm","Europe/Helsinki","America/New_York","America/Chicago","America/Denver",
+      "America/Los_Angeles","America/Sao_Paulo","Asia/Tokyo","Asia/Shanghai","Asia/Kolkata","Asia/Dubai",
+      "Australia/Sydney","Pacific/Auckland"];
+  }
+  tzList.forEach(tz => {
+    const opt = document.createElement("option");
+    opt.value = tz; opt.textContent = tz;
+    tzSelect.appendChild(opt);
+  });
+
+  // ---------- Notification schedule rows ----------
+  const notifRowsEl = document.getElementById("notif-rows");
+  const notifState = {};
+  NOTIF_DEFAULTS.forEach(item => {
+    const row = document.createElement("div");
+    row.className = "notif-row";
+
+    const fromId = `notif-from-${item.key}`;
+    const toId = `notif-to-${item.key}`;
+    const onId = `notif-on-${item.key}`;
+    row.innerHTML = `
+      <span class="title">${item.title}</span>
+      <select id="${fromId}"></select>
+      <select id="${toId}"></select>
+      <div class="switch">
+        <input type="checkbox" id="${onId}" ${item.on ? "checked" : ""}>
+        <label class="track" for="${onId}"></label>
+      </div>
+    `;
+    notifRowsEl.appendChild(row);
+
+    const fromSel = row.querySelector(`#${fromId}`);
+    const toSel = row.querySelector(`#${toId}`);
+    MONTHS.forEach(m => {
+      fromSel.appendChild(new Option(m, m));
+      toSel.appendChild(new Option(m, m));
+    });
+    fromSel.value = item.from;
+    toSel.value = item.to;
+
+    notifState[item.key] = { fromSel, toSel, onEl: row.querySelector(`#${onId}`) };
+  });
+
+  // ---------- Sky survey download panel (shown when deep_sky is on) ----------
+  const skySurveyPanel = document.getElementById("sky-survey-panel");
+  const skySurveyStatus = document.getElementById("sky-survey-status");
+  const btnDownloadSky = document.getElementById("btn-download-sky");
+
+  function refreshSkySurveyPanel() {
+    const deepSkyOn = notifState.deep_sky.onEl.checked;
+    skySurveyPanel.style.display = deepSkyOn ? "" : "none";
+  }
+  notifState.deep_sky.onEl.addEventListener("change", refreshSkySurveyPanel);
+  refreshSkySurveyPanel();
+
+  btnDownloadSky.addEventListener("click", async () => {
+    const quality = document.querySelector('input[name="sky-survey-quality"]:checked').value;
+    const isLarge = quality === "large";
+
+    btnDownloadSky.disabled = true;
+    btnDownloadSky.classList.add("is-loading");
+    skySurveyStatus.textContent = isLarge
+      ? "Downloading full-resolution image (~200 MB) — this can take several minutes…"
+      : "Downloading publication JPEG (~3.5 MB)…";
+    skySurveyStatus.className = "status-text";
+
+    try {
+      const res = await fetch("/api/download-sky-survey", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quality }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.ok) {
+        const mb = data.size_bytes ? (data.size_bytes / (1024 * 1024)).toFixed(1) : "?";
+        skySurveyStatus.textContent = `Saved sky-survey.jpg (${mb} MB) to ${data.path}.`;
+        skySurveyStatus.className = "status-text ok";
+      } else {
+        skySurveyStatus.textContent = "Couldn't download the image: " + (data.error || `server returned ${res.status}`);
+        skySurveyStatus.className = "status-text err";
+      }
+    } catch (e) {
+      skySurveyStatus.textContent = "Couldn't reach the local server for the download. Make sure app.py is running.";
+      skySurveyStatus.className = "status-text err";
+    } finally {
+      btnDownloadSky.disabled = false;
+      btnDownloadSky.classList.remove("is-loading");
+    }
+  });
+
+  // ---------- Horizon offset rows ----------
+  const horizonRowsEl = document.getElementById("horizon-rows");
+  const horizonFieldset = document.getElementById("horizon-fieldset");
+  const includeHorizon = document.getElementById("include-horizon");
+
+  function addHorizonRow(name, offset, file) {
+    const row = document.createElement("div");
+    row.className = "horizon-row";
+    row.innerHTML = `
+    <input type="text" class="horizon-name" placeholder="" value="${name || ""}">
+    <input type="number" class="horizon-offset" placeholder="0" value="${offset !== undefined ? offset : 0}">
+    <button type="button" class="icon-btn horizon-remove" aria-label="Remove">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="m19 6-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+      </svg>
+    </button>`;
+
+    // Keep the actual selected File (if any) attached to its row so it can
+    // be uploaded to obs_horizon when the save button is pressed. Rows
+    // added/typed manually (no file chosen) simply have no file to upload.
+    row._horizonFile = file || null;
+    row._horizonFileExt = file ? (file.name.match(/\.[^.]+$/)?.[0] || "") : "";
+
+    row.querySelector(".horizon-remove").addEventListener("click", () => {
+      row.remove();
+      refreshAll();
+    });
+    row.querySelectorAll("input").forEach(inp => inp.addEventListener("input", refreshAll));
+    horizonRowsEl.appendChild(row);
+  }
+
+  // New logic: Add row when a file is selected
+  document.getElementById('btn-add-horizon').addEventListener('click', function () {
+    document.getElementById('fileInput').click(); // Trigger file input
+  });
+
+  document.getElementById('fileInput').addEventListener('change', function (event) {
+    const file = event.target.files[0];
+    if (file) {
+      // Remove the extension from the filename for the display/config name
+      let name = file.name.replace(/\.[^.]+$/, '');
+      addHorizonRow(name, 0, file); // Add a new row with the name, offset 0, and the file to upload
+    }
+    // Reset so selecting the same file again still fires a change event
+    event.target.value = '';
+  });
+
+  includeHorizon.addEventListener("change", () => {
+    horizonFieldset.disabled = !includeHorizon.checked;
+    refreshAll();
+  });
+  horizonFieldset.disabled = !includeHorizon.checked;
+
+  // ---------- Geolocation ----------
+  const geoStatus = document.getElementById("geo-status");
+  document.getElementById("btn-geo").addEventListener("click", () => {
+    if (!navigator.geolocation) {
+      geoStatus.textContent = "Geolocation isn't available in this browser — enter coordinates manually.";
+      geoStatus.className = "status-text err";
+      return;
+    }
+    geoStatus.textContent = "Locating…";
+    geoStatus.className = "status-text";
+
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+      document.getElementById("latitude").value = lat.toFixed(4);
+      document.getElementById("longitude").value = lon.toFixed(4);
+
+      try {
+        const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (browserTz && [...tzSelect.options].some(o => o.value === browserTz)) {
+          tzSelect.value = browserTz;
+        }
+      } catch (e) { /* ignore */ }
+
+      geoStatus.textContent = "Got coordinates. Looking up elevation…";
+      geoStatus.className = "status-text";
+
+      try {
+        const res = await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${lat},${lon}`);
+        if (res.ok) {
+          const data = await res.json();
+          const el = data?.results?.[0]?.elevation;
+          if (typeof el === "number") {
+            document.getElementById("elevation").value = Math.round(el);
+            geoStatus.textContent = "Location, timezone and elevation filled in.";
+            geoStatus.className = "status-text ok";
+          } else {
+            throw new Error("no elevation in response");
+          }
+        } else {
+          throw new Error("elevation lookup failed");
+        }
+      } catch (e) {
+        geoStatus.textContent = "Location and timezone filled in — couldn't fetch elevation automatically, enter it manually.";
+        geoStatus.className = "status-text err";
+      }
+      refreshAll();
+    }, (err) => {
+      geoStatus.textContent = "Couldn't get your location (" + err.message + ") — enter coordinates manually.";
+      geoStatus.className = "status-text err";
+    });
+  });
+
+  // ---------- Validation + generation ----------
+  const requiredIds = ["topic", "latitude", "longitude", "elevation", "timezone"];
+  const saveBtn = document.getElementById("btn-save");
+  const footerMsg = document.getElementById("footer-msg");
+  const previewEl = document.getElementById("preview");
+
+  function pyStr(v) {
+    return `"${String(v).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  }
+  function pyBool(v) { return v ? "True" : "False"; }
+  function pad(str, len) { return str.length >= len ? str : str + " ".repeat(len - str.length); }
+
+  function isRequiredFilled() {
+    return requiredIds.every(id => {
+      const el = document.getElementById(id);
+      return el.value !== null && String(el.value).trim() !== "";
+    });
+  }
+
+  function buildFileText() {
+    const topic = document.getElementById("topic").value.trim();
+    const lat = document.getElementById("latitude").value.trim();
+    const lon = document.getElementById("longitude").value.trim();
+    const elev = document.getElementById("elevation").value.trim();
+    const tz = document.getElementById("timezone").value.trim();
+
+    const kp = document.getElementById("kp").value || "6";
+    const sunspotArea = document.getElementById("sunspot-area").value || "1500";
+    const cometMag = document.getElementById("comet-mag").value || "7";
+
+    const includeHorizonVal = includeHorizon.checked;
+    const redirect = document.getElementById("redirect-website").checked;
+    const daysAdvance = document.getElementById("days-advance").value || "30";
+
+    const focalLength = document.getElementById("focal-length").value || "750";
+    const sensorW = document.getElementById("sensor-w").value || "19.1";
+    const sensorH = document.getElementById("sensor-h").value || "13";
+    const filters = [];
+    if (document.getElementById("filter-ha").checked) filters.push("Ha");
+    if (document.getElementById("filter-oiii").checked) filters.push("OIII");
+    if (document.getElementById("filter-sii").checked) filters.push("SII");
+
+    const bortle = document.getElementById("bortle").value || "7";
+    const sqm = document.getElementById("sqm").value || "18.59";
+
+    const horizonRows = [...horizonRowsEl.querySelectorAll(".horizon-row")]
+      .map(row => ({
+        name: row.querySelector(".horizon-name").value.trim(),
+        offset: row.querySelector(".horizon-offset").value.trim() || "0",
+      }))
+      .filter(r => r.name !== "");
+
+    let horizonDictBody;
+    if (horizonRows.length === 0) {
+      horizonDictBody = ``;//`    "horizon_example": 0            # Make sure the name is the exact same as the horizon image`;
+    } else {
+      horizonDictBody = horizonRows.map((r, i) =>
+        `    ${pyStr(r.name)}: ${r.offset}${i < horizonRows.length - 1 ? "," : ""}`
+      ).join("\n");
+    }
+
+    const notifLines = NOTIF_DEFAULTS.map(item => {
+      const s = notifState[item.key];
+      const keyPadded = pad(pyStr(item.key) + ":", 20);
+      return `    ${keyPadded} ((${pyStr(s.fromSel.value)}, ${pyStr(s.toSel.value)}), ${pyBool(s.onEl.checked)})`;
+    }).join(",\n");
+
+    const filtersLiteral = "[" + filters.map(pyStr).join(", ") + "]";
+
+    return `topic = ${topic ? pyStr(topic) : '"xxxx"'}                      # Your topic
+latitude = ${lat ? pyStr(lat) : '"xxxx"'}                # Your latitude
+longitude = ${lon ? pyStr(lon) : '"xxxx"'}                # Your longitude
+elevation = ${elev ? pyStr(elev) : '"xxxx"'}                    # Your altitude in meters above sea level
+local_timezone = ${tz ? pyStr(tz) : '"xxxx"'}    # The timezone of where you will be observing from (IANA Time Zone Database)
+
+# Optional changes:
+kp_treshold = ${kp}                     # If kp exceeds this value, you will be notified
+total_sunspot_area_treshold = ${sunspotArea}  # If the total area (measured in MH) of all sunspots exceeds this value, you will be notified
+comet_mag_treshold = ${cometMag}              # Any comet with a magnitude lower than this number will notify you
+
+include_observation_horizon = ${pyBool(includeHorizonVal)} # Leave this False if you will not be adding your own horizon.png image, else change to True
+horizon_north_offset = {            # How many degrees offset is your image(s) from true north (-360 to +360)
+${horizonDictBody}
+}
+
+redirect_to_website = ${pyBool(redirect)}         # Decides if you should be redirected to a relevant website when clicking a notification (True/False)
+
+days_in_advance = ${daysAdvance}                # How many days in advance of solar/lunar eclipses you will recieve notifications
+
+rig_config = {
+    "focal_length": ${focalLength},            # Focal length of you telescope/lens
+    "sensor_w": ${sensorW},               # Camera sensor width in mm
+    "sensor_h": ${sensorH},                 # Camera sensor height in mm
+    "filters": ${filtersLiteral}# Available narrowband filters ("Ha", "OIII", "SII")
+}
+bortle_scale = ${bortle}                    # Bortle of your location
+SQM = ${sqm}                     # SQM of you location
+
+# ((from month, to month), should this event notify you? (True/False))
+# E.g. ("Jan", "Dec") will notify you the whole year, ("Apr", "Sep") will notify you from april to september
+notification_info = {
+${notifLines}
+}
+
+""" Prints all available timezones
+import zoneinfo
+timezones = sorted(zoneinfo.available_timezones())
+for t in timezones:
+    print(t)
+"""
+
+# Dont change
+from zoneinfo import ZoneInfo
+localtime = ZoneInfo(local_timezone)
+
+from pathlib import Path
+path_horizon_imgs = Path(__file__).parent / "obs_horizon"
+
+fov_rig_x = (rig_config["sensor_w"] / rig_config["focal_length"]) * 3437.75 # FOV x,y in arcminutes
+fov_rig_y = (rig_config["sensor_h"] / rig_config["focal_length"]) * 3437.75
+`;
+  }
+
+  function refreshAll() {
+    const filled = isRequiredFilled();
+    saveBtn.disabled = !filled;
+    footerMsg.textContent = filled
+      ? "Ready — this reflects everything you've filled in below."
+      : "Fill in topic, latitude, longitude, elevation and timezone to enable saving.";
+    footerMsg.className = "footer-msg" + (filled ? "" : " err");
+
+    if (previewEl.closest("#preview-wrap").classList.contains("open")) {
+      previewEl.textContent = buildFileText();
+    }
+  }
+
+  document.querySelectorAll("input, select").forEach(el => {
+    el.addEventListener("input", refreshAll);
+    el.addEventListener("change", refreshAll);
+  });
+
+  document.getElementById("btn-toggle-preview").addEventListener("click", (e) => {
+    const wrap = document.getElementById("preview-wrap");
+    wrap.classList.toggle("open");
+    e.target.textContent = wrap.classList.contains("open") ? "Hide preview" : "Show preview";
+    if (wrap.classList.contains("open")) previewEl.textContent = buildFileText();
+  });
+
+  // Uploads every horizon image that has a File attached to its row into
+  // the server's obs_horizon folder, renaming each to match the row's
+  // current name field (+ its original extension) so it lines up with the
+  // horizon_north_offset dict keys written into variables.py.
+  async function uploadHorizonImages() {
+    const rows = [...horizonRowsEl.querySelectorAll(".horizon-row")];
+    const results = { uploaded: 0, failed: [] };
+
+    for (const row of rows) {
+      const file = row._horizonFile;
+      if (!file) continue; // manually typed row, nothing to upload
+
+      const name = row.querySelector(".horizon-name").value.trim();
+      if (!name) continue;
+
+      const filename = `${name}${row._horizonFileExt || ""}`;
+      const formData = new FormData();
+      formData.append("file", file, filename);
+
+      try {
+        const res = await fetch("/upload", { method: "POST", body: formData });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.ok) {
+          results.uploaded++;
+        } else {
+          results.failed.push(filename);
+        }
+      } catch (e) {
+        results.failed.push(filename);
+      }
+    }
+
+    return results;
+  }
+
+  function triggerBrowserDownload(text) {
+    const blob = new Blob([text], { type: "text/x-python" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "variables.py";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  saveBtn.addEventListener("click", async () => {
+    if (saveBtn.disabled) return;
+    const text = buildFileText();
+
+    saveBtn.classList.add("is-loading");
+    saveBtn.disabled = true;
+
+    let uploadResults = { uploaded: 0, failed: [] };
+    try {
+      if (includeHorizon.checked) {
+        footerMsg.textContent = "Uploading horizon images…";
+        footerMsg.className = "footer-msg";
+        uploadResults = await uploadHorizonImages();
+      }
+
+      const res = await fetch("/api/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: text }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.ok) {
+        let msg = `Saved to ${data.path || "variables.py"}.`;
+        if (uploadResults.uploaded) msg += ` Uploaded ${uploadResults.uploaded} horizon image(s).`;
+        if (uploadResults.failed.length) {
+          msg += ` Failed to upload: ${uploadResults.failed.join(", ")}.`;
+          footerMsg.textContent = msg;
+          footerMsg.className = "footer-msg err";
+        } else {
+          footerMsg.textContent = msg;
+          footerMsg.className = "footer-msg ok";
+        }
+      } else {
+        footerMsg.textContent = "Server error: " + (data.error || "couldn't save.") + " Downloaded a copy instead.";
+        footerMsg.className = "footer-msg err";
+        triggerBrowserDownload(text);
+      }
+    } catch (e) {
+      footerMsg.textContent = "Couldn't reach the local server — downloaded a copy instead. Run app.py to save directly next time.";
+      footerMsg.className = "footer-msg err";
+      triggerBrowserDownload(text);
+    } finally {
+      saveBtn.classList.remove("is-loading");
+      saveBtn.disabled = !isRequiredFilled();
+    }
+  });
+
+  refreshAll();
+})();
+</script>
+</body>
+</html>

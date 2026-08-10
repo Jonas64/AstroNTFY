@@ -29,7 +29,7 @@ class SunspotNotifier(BaseNotifier):
             for d in row:
                 if d != "":
                     clean_data_rows[i].append(d)
-        clean_data_rows.remove([])
+        clean_data_rows = [r for r in clean_data_rows if r] # Remove empty lists
 
         today_utc_date = datetime.now(ZoneInfo("UTC")).date()
         target_time = time(hour=12, minute=0, second=0, tzinfo=ZoneInfo("UTC"))

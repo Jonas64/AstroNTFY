@@ -7,7 +7,7 @@ from variables import *
 from functions import *
 
 eclipse_url = "https://www.timeanddate.com/eclipse/in/"
-comet_img_url = "https://www.dropbox.com/scl/fi/06p5j4foc4j72t2hxepe1/comet.jpg?rlkey=ssmvrl1sd1b7atub3v6dx70g3&st=jz64u6cp&dl=1"
+eclipse_img_url = "https://www.dropbox.com/scl/fi/7e8ccet0dlf9j7tfeew6q/eclipse.jpeg?rlkey=4e1dscs94cnvjk590ilc1d4ge&st=08u5hqf6&dl=1"
 
 class EclipseNotifier(BaseNotifier):
     def fetch_data(self) -> dict | None:
@@ -153,13 +153,13 @@ class EclipseNotifier(BaseNotifier):
                 visible_str = "\nAt the eclipse's maximum, it will be visible from "+horizon_imgs_visibility_max[1]
                 self.visible_from_horizon = horizon_imgs_visibility_max
             elif horizon_imgs_visibility_begin[0] and begin_visible:
-                visible_str = f"\nThe eclipse will be visible at the start of the event from {horizon_imgs_visibility_max[1]}, however you will not see the maximum of the eclipse due to obstacles"
+                visible_str = f"\nThe eclipse will be visible at the start of the event from {horizon_imgs_visibility_begin[1]}, however you will not see the maximum of the eclipse due to obstacles"
                 self.visible_from_horizon = horizon_imgs_visibility_begin
             elif horizon_imgs_visibility_end[0] and end_visible:
-                visible_str = f"\nThe eclipse will be visible towards the end of the event from your {horizon_imgs_visibility_max[1]}, however you will not see the maximum of the eclipse due to obstacles"
+                visible_str = f"\nThe eclipse will be visible towards the end of the event from {horizon_imgs_visibility_end[1]}, however you will not see the maximum of the eclipse due to obstacles"
                 self.visible_from_horizon = horizon_imgs_visibility_end
             else:
-                visible_str = "\nThe eclipse will not at all be visible from any of your observation points"
+                visible_str = "\nThe eclipse will not at all be visible from any of your observation points due to obstacles. "
                 self.visible_from_horizon = horizon_imgs_visibility_max
         else:
             visible_str = ""
@@ -195,5 +195,5 @@ class EclipseNotifier(BaseNotifier):
         return self.base_headers(
             f"{self.data_poi["type"].iloc[0].capitalize()} {body_str} eclipse",
             eclipse_url,
-            comet_img_url
+            eclipse_img_url
         )
