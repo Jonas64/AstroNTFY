@@ -484,19 +484,19 @@ def notify(message:str, headers:dict, local_icon:str, notify_class:str, event_ti
         else:
             response = requests.post(ntfy_url, data=message, headers=headers)
     else:
-        print(f"Notification not sent due to it being a copy. ({notify_class})")
+        print(f"Notification not sent due to it being a copy. ({notify_class}) ({datetime.now(tz=vb.localtime)})")
         return False
 
     if response.status_code == 200:
         log(notify_class, event_time_utc, headers["Title"], message, True)
-        print(f"Notification sent successfully! ({notify_class})")
+        print(f"Notification sent successfully! ({notify_class}) ({datetime.now(tz=vb.localtime)})")
         return True
     else:
-        print(f"Failed to send notification ({notify_class}) ({tries}): {response.status_code}")
+        print(f"Failed to send notification ({notify_class}) (tries: {tries}) ({datetime.now(tz=vb.localtime)}): {response.status_code}")
         if tries < limit_tries:
             sleep(10)
             return notify(message, headers, local_icon, notify_class, event_time_utc, tries+1)
         else:
             log(notify_class, event_time_utc, headers["Title"], message, False)
-            print(f"Notificaiton failed after 10 tries. ({notify_class})")
+            print(f"Notificaiton failed after 10 tries. ({notify_class}) ({datetime.now(tz=vb.localtime)})")
             return False
