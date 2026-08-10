@@ -1,16 +1,17 @@
-from variables import latitude, longitude, localtime
 import tempfile
 import math
 import requests
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from suncalc import get_position
 from pathlib import Path
 from flask import Flask, jsonify, render_template, request
 from werkzeug.utils import secure_filename
 
-def get_lowest_sun_altitude(dt: datetime, lat: float, lon: float) -> float:
+def get_lowest_sun_altitude(dt: datetime, lat: float, lon: float, tz_name: str) -> float:
     """Calculates lowest sun altitude for any day at any location"""
-    local_dt = datetime(dt.year, dt.month, dt.day, tzinfo=localtime)
+    localtime_zoneinfo = ZoneInfo(tz_name)
+    local_dt = datetime(dt.year, dt.month, dt.day, tzinfo=localtime_zoneinfo)
     times = []
     for h in range(24):
         for m in range(2):
@@ -43,14 +44,16 @@ def get_edge_months(months) -> list:
     # No gap found, return first and last
     return [months[0], months[-1]]
 
-def get_dark_months() -> list:
+def get_dark_months(lat: float, lon: float, tz_name: str) -> list:
+    localtime_zoneinfo = ZoneInfo(tz_name)
     astronomical_darkness_months = []
     for m in range(1, 13):
         for d in range(1, 6):
             lowest_alt = get_lowest_sun_altitude(
-                datetime.now(tz=localtime).replace(month=m, day=d*5),
-                latitude,
-                longitude
+                datetime.now(tz=localtime_zoneinfo).replace(month=m, day=d*5),
+                lat,
+                lon,
+                tz_name
             )
             if lowest_alt <= -18:
                 if m not in astronomical_darkness_months:
@@ -80,6 +83,15 @@ def index():
 
 @app.route('/calculate_months')
 def calculate_months():
+    try:
+        lat = float(request.args.get('lat'))
+        lon = float(request.args.get('lon'))
+        tz = request.args.get('tz')
+        if not tz:
+            raise ValueError("Timezone required")
+    except (TypeError, ValueError) as e:
+        return jsonify(ok=False, error="Latitude, longitude, and timezone query parameters are required."), 400
+
     mapping_table = {
         1: "Jan",
         2: "Feb",
@@ -95,7 +107,10 @@ def calculate_months():
         12: "Dec"
     }
     # Read latitude and longitude from variables.py
-    dark_months = get_dark_months()
+    dark_months = get_dark_months(lat, lon, tz)
+
+    if not dark_months:
+        return jsonify({"months": ["Jan", "Dec"]})
 
     return jsonify({"months": [mapping_table[dark_months[1]], mapping_table[dark_months[0]]]})
 

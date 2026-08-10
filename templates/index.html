@@ -866,15 +866,31 @@
 <script>
 // ---------- Autofill months (astronomical darkness) ----------
 async function autoFillMonths() {
-  const response = await fetch('/calculate_months');
-  const data = await response.json();
-  document.getElementById('notif-from-northern_lights').value = data.months[0];
-  document.getElementById('notif-from-comet').value = data.months[0];
-  document.getElementById('notif-from-deep_sky').value = data.months[0];
+  const lat = document.getElementById('latitude').value;
+  const lon = document.getElementById('longitude').value;
+  const tz = document.getElementById('timezone').value;
 
-  document.getElementById('notif-to-northern_lights').value = data.months[1];
-  document.getElementById('notif-to-comet').value = data.months[1];
-  document.getElementById('notif-to-deep_sky').value = data.months[1];
+  if (!lat || !lon || !tz) {
+    alert("Please fill in latitude, longitude, and timezone first.");
+    return;
+  }
+
+  try {
+    const response = await fetch(`/calculate_months?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&tz=${encodeURIComponent(tz)}`);
+    const data = await response.json();
+
+    if (data.months) {
+      document.getElementById('notif-from-northern_lights').value = data.months[0];
+      document.getElementById('notif-from-comet').value = data.months[0];
+      document.getElementById('notif-from-deep_sky').value = data.months[0];
+
+      document.getElementById('notif-to-northern_lights').value = data.months[1];
+      document.getElementById('notif-to-comet').value = data.months[1];
+      document.getElementById('notif-to-deep_sky').value = data.months[1];
+    }
+  } catch (err) {
+    console.error("Failed to calculate dark months:", err);
+  }
 }
 (function () {
   const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
