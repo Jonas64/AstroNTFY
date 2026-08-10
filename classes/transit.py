@@ -53,6 +53,8 @@ class TransitNotifier(BaseNotifier):
     def headers(self) -> dict:
         if include_observation_horizon and self.visible_from_horizon[0]:
             generate_horizon_img(self.data_poi["iss_az"].iloc[0], self.data_poi["iss_alt"].iloc[0], "transit", self.data_poi["time_utc"].iloc[0], self.data_poi["best_lat"].iloc[0], self.data_poi["best_lon"].iloc[0], self.visible_from_horizon[2][0])
+        elif include_observation_horizon: # Not visible from any horizon, so pick the first one
+            generate_horizon_img(self.data_poi["iss_az"].iloc[0], self.data_poi["iss_alt"].iloc[0], "transit", self.data_poi["time_utc"].iloc[0], self.data_poi["best_lat"].iloc[0], self.data_poi["best_lon"].iloc[0], list(horizon_imgs)[0])
         if self.data_poi["body"].iloc[0] == "moon":
             title = "Lunar transit"
             transit_img_url = lunar_transit_img_url
