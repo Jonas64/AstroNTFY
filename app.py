@@ -176,4 +176,4 @@ def download_sky_survey():
 if __name__ == "__main__":
     # threaded=True so the sky-survey download (which can take a while) doesn't block the rest of the app.
     app.config["SERVER_NAME"] = "astrontfy.localhost:5050"
-    app.run(host="127.0.0.1", port=5050, debug=False, threaded=True)
+    app.run(host="0.0.0.0", port=5050, debug=False, threaded=True)
