@@ -82,7 +82,7 @@ class DeepSkyNotifier(BaseNotifier):
         ts = load.timescale()
         t = ts.from_datetime(check_for_time)
 
-        observer = earth + wgs84.latlon(float(vb.latitude), float(vb.longitude))
+        observer = earth + wgs84.latlon(vb.latitude, vb.longitude)
 
         target = Star(ra=Angle(radians=self.data["ra"]), dec=Angle(radians=self.data["dec"]))
 

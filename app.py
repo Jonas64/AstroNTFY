@@ -49,8 +49,8 @@ def get_dark_months() -> list:
         for d in range(1, 6):
             lowest_alt = get_lowest_sun_altitude(
                 datetime.now(tz=localtime).replace(month=m, day=d*5),
-                float(latitude),
-                float(longitude)
+                latitude,
+                longitude
             )
             if lowest_alt <= -18:
                 if m not in astronomical_darkness_months:

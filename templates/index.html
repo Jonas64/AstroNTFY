@@ -1115,6 +1115,11 @@ async function autoFillMonths() {
   }
 
   function buildFileText() {
+    function pyFloat(val) {
+      const num = parseFloat(val);
+      // Returns raw number if valid, otherwise falls back to a float representation or string placeholder
+      return isNaN(num) ? '"xxxx"' : num;
+    }
     const topic = document.getElementById("topic").value.trim();
     const lat = document.getElementById("latitude").value.trim();
     const lon = document.getElementById("longitude").value.trim();
@@ -1165,9 +1170,9 @@ async function autoFillMonths() {
     const filtersLiteral = "[" + filters.map(pyStr).join(", ") + "]";
 
     return `topic = ${topic ? pyStr(topic) : '"xxxx"'}                      # Your topic
-latitude = ${lat ? pyStr(lat) : '"xxxx"'}                # Your latitude
-longitude = ${lon ? pyStr(lon) : '"xxxx"'}                # Your longitude
-elevation = ${elev ? pyStr(elev) : '"xxxx"'}                    # Your altitude in meters above sea level
+latitude = ${lat ? pyFloat(lat) : '"xxxx"'}                # Your latitude
+longitude = ${lon ? pyFloat(lon) : '"xxxx"'}                # Your longitude
+elevation = ${elev ? pyFloat(elev) : '"xxxx"'}                    # Your altitude in meters above sea level
 local_timezone = ${tz ? pyStr(tz) : '"xxxx"'}    # The timezone of where you will be observing from (IANA Time Zone Database)
 
 # Optional changes:

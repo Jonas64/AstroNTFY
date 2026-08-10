@@ -11,7 +11,7 @@ comet_img_url = "https://www.dropbox.com/scl/fi/06p5j4foc4j72t2hxepe1/comet.jpg?
 
 class CometNotifier(BaseNotifier):
     def fetch_data(self) -> requests.Response | None:
-        response = requests.get(f"https://cobs.si/data/planner/?session_date={datetime.now(ZoneInfo("UTC")).strftime("%Y-%m-%d")}&sun_alt=0&lat={round(float(latitude), 4)}&long={round(float(longitude), 4)}&elev={elevation}&tz=UTC&mag={comet_mag_treshold}&alt=10&sun_elong=0&moon_elong=0&filter=0&_=1783448627942", timeout=30)
+        response = requests.get(f"https://cobs.si/data/planner/?session_date={datetime.now(ZoneInfo("UTC")).strftime("%Y-%m-%d")}&sun_alt=0&lat={round(latitude, 4)}&long={round(longitude, 4)}&elev={elevation}&tz=UTC&mag={comet_mag_treshold}&alt=10&sun_elong=0&moon_elong=0&filter=0&_=1783448627942", timeout=30)
         return self.validate_response(response)
 
     def parse_data(self) -> pd.DataFrame:
@@ -47,7 +47,7 @@ class CometNotifier(BaseNotifier):
 
     def headers(self) -> dict:
         if include_observation_horizon and self.visible_from_horizon[0]:
-            generate_horizon_img(self.data_poi["best_az"], self.data_poi["best_alt"], "comet", self.data_poi["time_utc"], float(latitude), float(longitude), self.visible_from_horizon[2][0])
+            generate_horizon_img(self.data_poi["best_az"], self.data_poi["best_alt"], "comet", self.data_poi["time_utc"], latitude, longitude, self.visible_from_horizon[2][0])
         if len(self.data) > 1:
             title = "Potentially multiple visable comets"
         else:

@@ -11,7 +11,7 @@ solar_transit_img_url = "https://www.dropbox.com/scl/fi/5hkcb42pi1gopd1a4hsah/so
 
 class TransitNotifier(BaseNotifier):
     def fetch_data(self) -> requests.Response | None:
-        return get_transit_dataframe(float(latitude), float(longitude), 50, 30)
+        return get_transit_dataframe(latitude, longitude, 50, 30)
 
     def parse_data(self) -> pd.DataFrame:
         return self.data
