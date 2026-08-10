@@ -1,7 +1,7 @@
 topic = "xxxx"                      # Your topic
-latitude = "52.5200"                # Your latitude
-longitude = "13.4050"               # Your longitude
-elevation = "38"                    # Your altitude in meters above sea level
+latitude = 52.5200                  # Your latitude
+longitude = 13.4050                 # Your longitude
+elevation = 38                      # Your altitude in meters above sea level
 local_timezone = "Europe/Berlin"    # The timezone of where you will be observing from (IANA Time Zone Database)
 
 # Optional changes:

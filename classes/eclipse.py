@@ -185,7 +185,7 @@ class EclipseNotifier(BaseNotifier):
             else:
                 best_alt, best_az = self.data_poi["end_alt"].iloc[0], self.data_poi["end_az"].iloc[0]
                 best_time = self.data_poi["end_utc"].iloc[0]
-            generate_horizon_img(best_az, best_alt, "eclipse", best_time, float(latitude), float(longitude), self.visible_from_horizon[2][0])
+            generate_horizon_img(best_az, best_alt, "eclipse", best_time, latitude, longitude, self.visible_from_horizon[2][0])
         
         if self.data_poi["body"].iloc[0] == "sun":
             body_str = "solar"

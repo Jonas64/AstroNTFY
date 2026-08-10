@@ -69,7 +69,7 @@ def ra_dec_to_alt_az(ra:float, dec:str, time_utc:datetime) -> tuple:
     eph = load("de421.bsp")
     earth = eph["earth"]
 
-    observer = earth + wgs84.latlon(float(vb.latitude), float(vb.longitude))
+    observer = earth + wgs84.latlon(vb.latitude, vb.longitude)
 
     comet = Star(ra_hours=ra, dec_degrees=dms_to_decimal(dec))
 
@@ -102,8 +102,8 @@ def format_delta(delta) -> str:
 
 def weather() -> pd.DataFrame:
     """Fetches the weather forecast and returns it as a dataframe"""
-    latitude_short = str(round(float(vb.latitude), 3))
-    longitude_short = str(round(float(vb.longitude), 3))
+    latitude_short = str(round(vb.latitude, 3))
+    longitude_short = str(round(vb.longitude, 3))
 
     weather_forecast = requests.get(f"https://api.met.no/weatherapi/locationforecast/2.0/compact?lat={latitude_short}&lon={longitude_short}&altitude={vb.elevation}", headers={"User-Agent": "AstroNTFY"})
     weather_forecast = weather_forecast.json()
@@ -372,7 +372,7 @@ def calculate_local_lunar_eclipse(t_start:datetime, t_greatest:datetime, t_end:d
     earth, moon = eph['earth'], eph['moon']
 
     # Define the local observer
-    observer = earth + wgs84.latlon(float(vb.latitude), float(vb.longitude))
+    observer = earth + wgs84.latlon(vb.latitude, vb.longitude)
 
     # Helper function to compute Altitude & Azimuth at a specific instant
     def get_moon_altaz(t):
