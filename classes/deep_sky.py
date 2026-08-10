@@ -1,13 +1,13 @@
 from .base import BaseNotifier
 from skyfield.api import load, wgs84, Star
-from skyfield import almanac
 from skyfield.units import Angle
 import pandas as pd
+import re
 from variables import *
 from functions import *
 
-northern_lights_url = "https://www.nordlysvarsel.com/en/"
-northern_lights_img_url = "https://www.dropbox.com/scl/fi/vfdq084syxys7b6n9jhmq/northern_lights.jpg?rlkey=pmo8l094bzjv1vn5cm5z10rf9&st=76hp8qps&dl=1"
+deep_sky_url = "https://freestarcharts.com/"
+deep_sky_img_url = "https://www.dropbox.com/scl/fi/jx0vx8t0pryk9sksnfyog/DSO.jpg?rlkey=w0q0miv1nm6msln707wscur8t&st=jk6hletx&dl=1"
 
 ngc_type_translation = {
     "*":      "Star",
@@ -159,9 +159,9 @@ class DeepSkyNotifier(BaseNotifier):
 
         all_scores.append(translate(target.loc["alt"], 25, 90, 0, 1) * weights["alt"]) # Target altitude score
         if target.loc["type"] == "Reflection Nebula": # Moon phase score
-            all_scores.append(self.clamp((((moon_phase / 122.475) ** 2) * 1.5) + 0.4, 0, 1) * weights["moon"])
+            all_scores.append(self.clamp(1 - ((((moon_phase / 122.475) ** 2) * 1.5) + 0.4), 0, 1) * weights["moon"])
         else:
-            all_scores.append(self.clamp(((moon_phase / 122.475) ** 2) * 1.5, 0, 1) * weights["moon"])
+            all_scores.append(self.clamp(1 - (((moon_phase / 122.475) ** 2) * 1.5), 0, 1) * weights["moon"])
 
         frame_penalty = self.clamp(abs(target.loc["fill_ratio"] - ideal_fill), 0, 1)
         all_scores.append((1 - frame_penalty) * weights["framing"]) # Framing score
@@ -170,7 +170,9 @@ class DeepSkyNotifier(BaseNotifier):
         brightness_norm = self.clamp((target.loc["eff_vmag"] - vmag_min) / (vmag_range + 1e-9), 0, 1)
         all_scores.append((1 - brightness_norm) * weights["brightness"]) # Magnitude score
 
-        all_scores.append(self.clamp(1 - (target.loc["sbrightn"] - SQM) / (22.5 - SQM), 0, 1) * weights["surf_brightness"]) # Surface brightness score
+        smax = self.data["sbrightn"].max()
+        surf_brightness_norm = self.clamp((target.loc["sbrightn"] - SQM) / (smax - SQM + 1e-9), 0, 1)
+        all_scores.append((1 - surf_brightness_norm) * weights["surf_brightness"]) # Surface brightness score
 
         all_scores.append(self.moon_proximity_score(target.loc["alt"], target.loc["az"]) * weights["moon_prox"]) # Moon proximity score, how close is moon to target
 
@@ -212,7 +214,14 @@ class DeepSkyNotifier(BaseNotifier):
         vmin, vmax = self.data["eff_vmag"].min(), self.data["eff_vmag"].max()
         self.data["total_score"] = self.data.apply(lambda row: self.score_target(row, vmin, vmax), axis=1)
         self.data.sort_values(by="total_score", inplace=True)
-    
+
+    def format_catalog_id(self, catalog_id: str) -> str:
+        match = re.match(r"^([A-Za-z]+)(\d+)$", catalog_id)
+        if match:
+            prefix, digits = match.groups()
+            return f"{prefix.lower()}-{int(digits)}"
+        return catalog_id
+
     def is_notable(self) -> bool:
         if self.data_poi["closest_weather"]["cloud_area_fraction"].iloc[0] > 15:
             return False
@@ -244,8 +253,12 @@ class DeepSkyNotifier(BaseNotifier):
     def headers(self) -> dict:
         if include_observation_horizon:
             generate_telescope_view(math.degrees(self.data_poi["ra"]), math.degrees(self.data_poi["dec"]))
+
+        web_name = self.data_poi["name"].split(" ")[0]
+        web_name = self.format_catalog_id(web_name)
+
         return self.base_headers(
             f"{self.data_poi["clean_name"]} will be an ideal candidate for astrophotography tonight",
-            northern_lights_url,
-            northern_lights_img_url
+            deep_sky_url+web_name,
+            deep_sky_img_url
         )

@@ -60,8 +60,8 @@ def get_dark_months() -> list:
 
 BASE_DIR = Path(__file__).resolve().parent
 EXAMPLE_FILE = BASE_DIR / "variables_example.py"
-TARGET_FILE = BASE_DIR / "variables_test.py"
-SKY_SURVEY_FILE = BASE_DIR / "sky-survey-test.jpg"
+TARGET_FILE = BASE_DIR / "variables.py"
+SKY_SURVEY_FILE = BASE_DIR / "sky-survey.jpg"
 UPLOAD_FOLDER = BASE_DIR / "obs_horizon"
 UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 

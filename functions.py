@@ -495,7 +495,7 @@ def notify(message:str, headers:dict, local_icon:str, notify_class:str, event_ti
         print(f"Failed to send notification ({notify_class}) ({tries}): {response.status_code}")
         if tries < limit_tries:
             sleep(10)
-            notify(message, headers, local_icon, notify_class, event_time_utc, tries+1)
+            return notify(message, headers, local_icon, notify_class, event_time_utc, tries+1)
         else:
             log(notify_class, event_time_utc, headers["Title"], message, False)
             print(f"Notificaiton failed after 10 tries. ({notify_class})")

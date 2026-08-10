@@ -113,7 +113,7 @@ $Az=(\frac{x}{width})\times360$
 
 Find the real azimuth for the landmark by standing exactly where you took the photo and use the compass app on your phone. 
 
-Now subtract the two and you're left with the horizon north offset. There are many ways to do this of course, some are probably easier and more precise. This is only a suggestion.
+Now subtract the calculated azimuth (angle in your image) from the measured azimuth and you're left with the horizon north offset. There are many ways to do this of course, some are probably easier and more precise. This is only a suggestion.
 
 ### Uploading the image
 #### Using the local web interface
