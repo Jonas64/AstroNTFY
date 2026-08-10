@@ -36,9 +36,9 @@ for n in notifiers:
         ran_notifiers.append(n)
 
 if len(ran_notifiers) > 0:
-    log_txt = f"{datetime.now(tz=vb.localtime)} | Ran notifiers {", ".join(ran_notifiers)}."
+    log_txt = f"\n{datetime.now(tz=vb.localtime)} | Ran notifiers {", ".join(ran_notifiers)}."
 else:
-    log_txt = f"{datetime.now(tz=vb.localtime)} | No notifiers ran."
+    log_txt = f"\n{datetime.now(tz=vb.localtime)} | No notifiers ran."
 
 print(log_txt)
 
