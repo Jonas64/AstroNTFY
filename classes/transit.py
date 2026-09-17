@@ -31,6 +31,7 @@ class TransitNotifier(BaseNotifier):
         time_utc = self.data_poi["time_utc"].iloc[0]
         name = self.data_poi["name"].iloc[0]
         alt, az = self.data_poi["iss_alt"].iloc[0], self.data_poi["iss_az"].iloc[0]
+        dist_km = round(self.data_poi["obs_dist_km"].iloc[0], 1)
 
         if include_observation_horizon:
             horizon_imgs_visibility = get_visibility(az, alt)
@@ -46,9 +47,9 @@ class TransitNotifier(BaseNotifier):
         if body == "moon":
             transit_type = "lunar"
         if total_count == 1:
-            return f"On {to_str_localtime(time_utc)} there will be a {transit_type} transit of {name} with a duration of {self.data_poi["duration"].iloc[0]} s. {visible_str}"
+            return f"On {to_str_localtime(time_utc)} there will be a {transit_type} transit of {name} with a duration of {self.data_poi["duration"].iloc[0]} s, {dist_km} km from your location. {visible_str}"
         else:
-            return f"The first transit will occur on {to_str_localtime(time_utc)}, this will be a {transit_type} transit of {name} with a duration of {self.data_poi["duration"].iloc[0]} s. {visible_str}"
+            return f"The first transit will occur on {to_str_localtime(time_utc)}, this will be a {transit_type} transit of {name} with a duration of {self.data_poi["duration"].iloc[0]} s, {dist_km} km from your location. {visible_str}"
 
     def headers(self) -> dict:
         if include_observation_horizon and self.visible_from_horizon[0]:
